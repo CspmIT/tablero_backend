@@ -1,0 +1,526 @@
+// ============================================================================
+//  Tablero de Mando Cooptech — Modelo de datos (Prisma + MySQL)
+//  Plataforma single-tenant (uso interno de Cooptech).
+//  Auth delegado al servicio de identidad central (multiproyecto): el backend
+//  NO guarda usuarios ni contraseñas; valida el token y mapea `identitySub`.
+//  Archivos/imágenes en MinIO; en la base se guarda solo la referencia (modelo Archivo).
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+//  ENUMS de dominio (espejan las constantes del tablero)
+// ---------------------------------------------------------------------------
+
+// Clasificación propia del tablero (NO es el `profile` de identidad).
+enum TipoColaborador {
+  manager
+  gerencial
+  collaborator
+  externo
+  tercerizado
+}
+
+enum Enfoque {
+  ORGANIZACION    // "Organización"
+  ELECTRONICA     // "Electrónica"
+  DESARROLLO_WEB  // "Desarrollo web"
+  COMERCIALIZACION // "Comercialización"
+  OPERACION       // "Operación"
+}
+
+enum EstadoProyecto {
+  activo
+  pausado
+  cerrado
+}
+
+enum KanbanColumna {
+  backlog
+  todo
+  doing
+  done
+}
+
+enum Prioridad {
+  baja
+  media
+  alta
+  urgente
+}
+
+// Etapas del embudo de CRM (incluye "perdido", que en el tablero es CRM_COLUMN_PERDIDO).
+enum EtapaLead {
+  contacto
+  visita_agendada
+  visita_realizada
+  propuesta
+  negociacion
+  trial
+  ganado
+  perdido
+}
+
+// Estado de un día en la grilla semanal de actividad.
+enum EstadoGrilla {
+  present
+  home_office
+  vacaciones
+  franco
+  franco_cumple
+  feriado
+  licencia
+  viaje
+}
+
+// Cómo se calcula el avance de un objetivo.
+enum ModoCalculoObjetivo {
+  manual       // se carga a mano
+  por_tags     // se deriva de tareas/proyectos etiquetados
+  por_actividad // se deriva de actividades de CRM (Objetivo 8)
+  por_leads     // avance por cantidad de leads y eventos del año (Objetivo 8)
+  por_monto_ganado // avance por monto US$ de leads ganados del año vs meta (Objetivo 9)
+}
+
+// Tipos de actividad de CRM que alimentan el Objetivo 8 (visibilidad de marca).
+enum TipoActividadCrm {
+  visita
+  videollamada
+  evento
+}
+
+// ---------------------------------------------------------------------------
+//  NÚCLEO: equipo
+// ---------------------------------------------------------------------------
+
+model Colaborador {
+  id           Int          @id @default(autoincrement())
+  // Vínculo con el servicio de identidad central. Null hasta el primer login mapeado.
+  identitySub  String?         @unique
+  tipo         TipoColaborador @default(collaborator)
+  nombre       String
+  email        String?
+  sector       String?
+  // Clasificacion para el desglose de costos Cooptech: desarrollo (I+D) | comercial | organizacion.
+  funcionCosto String          @default("desarrollo")
+  iniciales    String?
+  // Avatar como data-URI (recorte cuadrado 128x128), igual que el standalone.
+  foto         String?         @db.Text
+  haceGuardia  Boolean         @default(false)
+  fechaIngreso DateTime?       @db.Date
+  fechaSalida  DateTime?       @db.Date
+  // Cumpleaños (día/mes; el año no importa para el tablero).
+  cumpleDia    Int?
+  cumpleMes    Int?
+  activo       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  periodos           ColaboradorPeriodo[]
+  tareasAsignadas    TareaResponsable[]
+  leadsOwner         Lead[]               @relation("LeadOwner")
+  proyectosOwner     Proyecto[]           @relation("ProyectoOwner")
+  grillaEntradas     GrillaEntrada[]
+  weeklyWips         WeeklyWip[]
+  francosEspeciales  FrancoEspecial[]
+  carryovers         Carryover[]
+  actividadesCrm     CrmActividad[]
+
+  @@index([activo])
+}
+
+// Períodos de actividad de un colaborador (para costos y grilla cuando entra/sale).
+model ColaboradorPeriodo {
+  id            Int      @id @default(autoincrement())
+  colaboradorId Int
+  desde         DateTime    @db.Date
+  hasta         DateTime?   @db.Date // null = sigue activo
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@index([colaboradorId])
+}
+
+// ---------------------------------------------------------------------------
+//  NÚCLEO: proyectos, tareas, etiquetas
+// ---------------------------------------------------------------------------
+
+model Proyecto {
+  id        Int         @id @default(autoincrement())
+  nombre    String
+  enfoque   Enfoque?
+  estado    EstadoProyecto @default(activo)
+  cliente     String?
+  descripcion String?       @db.Text
+  ownerId     Int?
+  owner       Colaborador?  @relation("ProyectoOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  fechaInicio DateTime?     @db.Date
+  fechaFin    DateTime?     @db.Date
+  inicioReal  DateTime?     @db.Date
+  cierreReal  DateTime?     @db.Date
+  objetivoId Int?
+  objetivo   Objetivo?      @relation(fields: [objetivoId], references: [id], onDelete: SetNull)
+  // Si el proyecto nació de un lead ganado (hand-off CRM -> Kanban).
+  leadId    Int?
+  lead      Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  tareas Tarea[]
+
+  @@index([leadId])
+  @@index([objetivoId])
+  @@index([ownerId])
+}
+
+model Tarea {
+  id          Int        @id @default(autoincrement())
+  proyectoId  Int?
+  proyecto    Proyecto?     @relation(fields: [proyectoId], references: [id], onDelete: SetNull)
+  titulo      String
+  descripcion String?       @db.Text
+  kanbanCol   KanbanColumna @default(backlog)
+  prioridad   Prioridad     @default(media)
+  pct         Int?          // 0..100; en columna 'done' se considera 100
+  weight      Int           @default(1)
+  fechaInicio DateTime?     @db.Date
+  fechaFin    DateTime?     @db.Date
+  startedAt   DateTime?     // inicio real (al pasar a doing)
+  closedAt    DateTime?     // cierre real (al pasar a done)
+  unidades    Json?         // subtareas por equipo en cards "por_equipo": [{ label, pct, done }]
+  orden       Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  responsables TareaResponsable[]
+  tags         TareaTag[]
+
+  @@index([proyectoId])
+  @@index([kanbanCol])
+}
+
+// Catálogo de etiquetas (hoy `tags_registry`). Puente entre tareas y objetivos.
+// Plantilla de proceso por producto: define las tareas que se generan al ganar un lead.
+// etapas: [{ seq, tipo: 'unica'|'por_equipo', priority, owners: [colaboradorId], titulo, desc }]
+model Plantilla {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  producto    String   @unique
+  unidadLabel String   @default("unidad")
+  etapas      Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Tag {
+  id        Int     @id @default(autoincrement())
+  nombre    String     @unique
+  categoria String?
+  color     String?
+  tareas    TareaTag[]
+  objetivos ObjetivoTag[]
+}
+
+// Puente N:M tarea <-> colaborador (responsables).
+model TareaResponsable {
+  tareaId       Int
+  colaboradorId Int
+  tarea         Tarea       @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@id([tareaId, colaboradorId])
+  @@index([colaboradorId])
+}
+
+// Puente N:M tarea <-> tag.
+model TareaTag {
+  tareaId Int
+  tagId   Int
+  tarea   Tarea @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  tag     Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([tareaId, tagId])
+  @@index([tagId])
+}
+
+// ---------------------------------------------------------------------------
+//  NÚCLEO: objetivos
+// ---------------------------------------------------------------------------
+
+model Objetivo {
+  id            Int              @id @default(autoincrement())
+  codigo        String              @unique // p.ej. "OE08"
+  titulo        String              @db.Text
+  descripcion   String?             @db.Text
+  indicador     String?             @db.Text
+  meta          String?             @db.Text
+  peso          Decimal?            @db.Decimal(6, 2)
+  fechaEsperada DateTime?           @db.Date
+  anio          Int                 @default(2026) // año de gestión del objetivo
+  enfoque       Enfoque?
+  calculo       ModoCalculoObjetivo @default(manual)
+  avanceManual      Decimal?  @db.Decimal(5, 4)  // override manual 0..1; si es null/0 se deriva de proyectos
+  asignadosIds      Json?     // ids de colaboradores asignados
+  asignadosExternos Json?     // nombres de externos asignados
+  asignadosTodos    Boolean   @default(false)
+  depIt             Boolean   @default(false)    // depende de IT
+  comentarios       String?   @db.Text            // notas de seguimiento (texto libre)
+  metaNumerica      Decimal?  @db.Decimal(14, 2)  // meta en US$ para objetivos "por_monto_ganado"
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  proyectos        Proyecto[]
+  tags             ObjetivoTag[]
+  aportesActividad ObjetivoAporteActividad[]
+  archivos         Archivo[]
+}
+
+model ObjetivoTag {
+  objetivoId Int
+  tagId      Int
+  objetivo   Objetivo @relation(fields: [objetivoId], references: [id], onDelete: Cascade)
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([objetivoId, tagId])
+  @@index([tagId])
+}
+
+// Peso de cada tipo de actividad en un objetivo "por_actividad" (Objetivo 8).
+// p.ej. visita/videollamada = 1%, evento = 10%.
+model ObjetivoAporteActividad {
+  id         Int           @id @default(autoincrement())
+  objetivoId Int
+  tipo       TipoActividadCrm
+  aportePct  Decimal          @db.Decimal(6, 2)
+  objetivo   Objetivo         @relation(fields: [objetivoId], references: [id], onDelete: Cascade)
+
+  @@unique([objetivoId, tipo])
+}
+
+// ---------------------------------------------------------------------------
+//  CRM
+// ---------------------------------------------------------------------------
+
+model Lead {
+  id                 Int    @id @default(autoincrement())
+  contactoNombre     String?
+  organizacion       String
+  telefono           String?
+  email              String?
+  ciudad             String?
+  fechaPrimerContacto DateTime? @db.Date
+  ownerId            Int?
+  owner              Colaborador? @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  etapa              EtapaLead @default(contacto)
+
+  // Valor comercial
+  valorEstimadoUsd Decimal? @db.Decimal(14, 2)
+  esEvento         Boolean  @default(false) // marca el lead como presentación en evento (Objetivo 8)
+  valorOrigen      String   @default("manual") // "manual" | "presupuestador"
+  montoFacturadoUsd Decimal? @db.Decimal(14, 2)
+  cantidadEquipos  Int?
+  equiposDetalle   String?  @db.Text
+
+  // Seguimiento
+  proximaAccion       String?
+  proximaAccionFecha  DateTime? @db.Date
+  motivoPerdido       String?   @db.Text
+  notas               String?   @db.Text
+  fuente              String?
+  fuenteOtra          String?
+  trialVence          DateTime? @db.Date
+  trialNotas          String?   @db.Text
+  presupuestoEnviadoFecha  DateTime? @db.Date
+  presupuestoAprobadoFecha DateTime? @db.Date
+  presupuestoLink     String?
+
+  // Estados de los presupuestadores embebidos (cajas negras del iframe).
+  // Las imágenes de +Agua NO van acá: viven en MinIO (modelo Archivo) y el JSON
+  // referencia su id. Estos JSON guardan ítems, precios y configuración.
+  presupuestoEstado     Json?
+  presupuestoAguaEstado Json?
+  coopcloudEstado       Json?
+  coopcloudCostoMensual Decimal? @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  productos   LeadProducto[]
+  actividades CrmActividad[]
+  proyectos   Proyecto[]
+  archivos    Archivo[]
+
+  @@index([etapa])
+  @@index([ownerId])
+}
+
+// Producto(s) de interés de un lead. String (no enum) para poder sumar productos
+// nuevos sin migrar. Valores conocidos: +Agua, Reconecta, Centinela, CoopCloud,
+// Cooptech (consultoría), Otro.
+model LeadProducto {
+  leadId   Int
+  producto String
+  lead     Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@id([leadId, producto])
+}
+
+// Catálogo de clientes/organizaciones.
+model Cliente {
+  id          Int   @id @default(autoincrement())
+  nombre      String   @unique
+  tipoCliente String?  @default("Cooperativa")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Actividades de CRM que alimentan el Objetivo 8 (visibilidad de marca).
+// PENDIENTE de definir con Leonardo: si la actividad se ata a un lead o va suelta,
+// y cómo se registran videollamadas/visitas. Por eso leadId es opcional.
+model CrmActividad {
+  id            Int           @id @default(autoincrement())
+  leadId        Int?
+  lead          Lead?            @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  colaboradorId Int?
+  colaborador   Colaborador?     @relation(fields: [colaboradorId], references: [id], onDelete: SetNull)
+  tipo          TipoActividadCrm
+  fecha         DateTime         @db.Date
+  notas         String?          @db.Text
+  createdAt     DateTime         @default(now())
+
+  @@index([leadId])
+  @@index([tipo, fecha])
+}
+
+// ---------------------------------------------------------------------------
+//  ARCHIVOS (MinIO): imágenes de +Agua, PDFs, etc.
+//  El binario vive en MinIO; acá solo el registro y la referencia.
+// ---------------------------------------------------------------------------
+
+model Archivo {
+  id        Int   @id @default(autoincrement())
+  key       String   @unique // ruta/objeto en MinIO
+  url       String?           // URL pública o firmada (puede regenerarse)
+  nombre    String
+  mime      String?
+  tamano    Int?
+  // Metadata de fotos de +Agua
+  gpsLat    Float?
+  gpsLng    Float?
+  esBoceto  Boolean  @default(false)
+  // Contexto al que pertenece
+  leadId    Int?
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  objetivoId Int?
+  objetivo  Objetivo? @relation(fields: [objetivoId], references: [id], onDelete: SetNull)
+  contexto  String?  // p.ej. "agua_foto", "pdf_presupuesto", "avatar", "objetivo_foto"
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+  @@index([objetivoId])
+}
+
+// ---------------------------------------------------------------------------
+//  OPERACIÓN: grilla, guardias, francos, feriados, vacaciones
+// ---------------------------------------------------------------------------
+
+// Una entrada por colaborador y día. `items` guarda las tareas del día como JSON:
+// [{ text, wip, tags:[] }]. El estado del día sale de EstadoGrilla.
+model GrillaEntrada {
+  id            Int       @id @default(autoincrement())
+  colaboradorId Int
+  colaborador   Colaborador  @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  fecha         DateTime     @db.Date
+  estado        EstadoGrilla @default(present)
+  entryTime     String?      // hora de ingreso (HH:MM), solo si estado = present
+  viajeLabel    String?      // destino, solo si estado = viaje
+  items         Json?        // [{ text, wip, tags }]
+  horasExtra    Json?        // { ingreso, salida, horas } | null
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([colaboradorId, fecha])
+  @@index([fecha])
+}
+
+// Foco principal de la semana (texto libre) por colaborador y semana ISO.
+model WeeklyWip {
+  id            Int      @id @default(autoincrement())
+  colaboradorId Int
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  anio          Int
+  semanaIso     Int
+  texto         String   @db.Text
+
+  @@unique([colaboradorId, anio, semanaIso])
+}
+
+// Rotación de guardias: una fila por semana (anio + week), con las asignaciones embebidas.
+// asignaciones: [{ id: colaboradorId, vacation?: boolean, count?: number }]
+model GuardiaSemana {
+  id           Int    @id @default(autoincrement())
+  anio         Int
+  week         Int
+  range        String   // "DD/MM al DD/MM" (a partir del lunes de inicio)
+  asignaciones Json
+
+  @@unique([anio, week])
+}
+
+// Francos/licencias puntuales fuera de la grilla regular.
+model FrancoEspecial {
+  id            Int      @id @default(autoincrement())
+  colaboradorId Int
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  fecha         DateTime    @db.Date
+  tipo          String?     // p.ej. "franco", "licencia"
+  motivo        String?
+
+  @@index([colaboradorId])
+  @@index([fecha])
+}
+
+model Feriado {
+  id     Int   @id @default(autoincrement())
+  fecha  DateTime @unique @db.Date
+  nombre String
+}
+
+// Vacaciones acumuladas / arrastre por colaborador y año.
+model Carryover {
+  id            Int      @id @default(autoincrement())
+  colaboradorId Int
+  anio          Int
+  dias          Decimal     @db.Decimal(6, 2)
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@unique([colaboradorId, anio])
+}
+
+// ---------------------------------------------------------------------------
+//  COSTOS (metodología CPN Deusebio)
+//  Solo se guardan los insumos por mes; CMT/CMP/NAP/NAR se calculan en runtime.
+// ---------------------------------------------------------------------------
+
+model CostoMensual {
+  id              Int   @id @default(autoincrement())
+  mes             String   @unique // "YYYY-MM"
+  costoLaboral    Decimal? @db.Decimal(14, 2) // ARS
+  cotizacionDolar Decimal? @db.Decimal(14, 4)
+  // Distribución de horas por colaborador/semana entre unidades de negocio (CPN).
+  // { [colaboradorId]: { weeks: [ { unidades: { adm, energia, ... } } ] } }
+  asignaciones    Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+//  NOTA: el módulo de Materiales/inventario queda fuera de este esquema inicial
+//  (todavía no existe en el tablero). Se agrega cuando se diseñe, en su propia ola.
+// ---------------------------------------------------------------------------

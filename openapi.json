@@ -1,0 +1,3059 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "API Tablero Cooptech",
+    "version": "1.0.0",
+    "description": "API REST del Tablero de Mando Cooptech. Single-tenant, uso interno. Autenticación delegada al servicio de identidad central (Bearer JWT)."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "auth"
+    },
+    {
+      "name": "colaboradores"
+    },
+    {
+      "name": "proyectos"
+    },
+    {
+      "name": "tareas"
+    },
+    {
+      "name": "objetivos"
+    },
+    {
+      "name": "tags"
+    },
+    {
+      "name": "leads"
+    },
+    {
+      "name": "clientes"
+    },
+    {
+      "name": "guardias"
+    },
+    {
+      "name": "francos"
+    },
+    {
+      "name": "feriados"
+    },
+    {
+      "name": "archivos"
+    },
+    {
+      "name": "grilla"
+    },
+    {
+      "name": "costos"
+    }
+  ],
+  "paths": {
+    "/colaboradores": {
+      "get": {
+        "tags": [
+          "colaboradores"
+        ],
+        "summary": "Listar colaboradores",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Colaborador"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "colaboradores"
+        ],
+        "summary": "Crear colaboradore",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ColaboradorInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Colaborador"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/colaboradores/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "colaboradores"
+        ],
+        "summary": "Obtener por id",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Colaborador"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "colaboradores"
+        ],
+        "summary": "Actualizar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ColaboradorInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Colaborador"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "colaboradores"
+        ],
+        "summary": "Eliminar",
+        "responses": {
+          "204": {
+            "description": "Eliminado"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/proyectos": {
+      "get": {
+        "tags": [
+          "proyectos"
+        ],
+        "summary": "Listar proyectos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Proyecto"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "proyectos"
+        ],
+        "summary": "Crear proyecto",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProyectoInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Proyecto"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/proyectos/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "proyectos"
+        ],
+        "summary": "Obtener por id",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Proyecto"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "proyectos"
+        ],
+        "summary": "Actualizar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProyectoInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Proyecto"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "proyectos"
+        ],
+        "summary": "Eliminar",
+        "responses": {
+          "204": {
+            "description": "Eliminado"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/tareas": {
+      "get": {
+        "tags": [
+          "tareas"
+        ],
+        "summary": "Listar tareas",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Tarea"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tareas"
+        ],
+        "summary": "Crear tarea",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TareaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tarea"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/tareas/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "tareas"
+        ],
+        "summary": "Obtener por id",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tarea"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "tareas"
+        ],
+        "summary": "Actualizar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TareaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tarea"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "tareas"
+        ],
+        "summary": "Eliminar",
+        "responses": {
+          "204": {
+            "description": "Eliminado"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/objetivos": {
+      "get": {
+        "tags": [
+          "objetivos"
+        ],
+        "summary": "Listar objetivos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Objetivo"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "objetivos"
+        ],
+        "summary": "Crear objetivo",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObjetivoInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Objetivo"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/objetivos/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "objetivos"
+        ],
+        "summary": "Obtener por id",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Objetivo"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "objetivos"
+        ],
+        "summary": "Actualizar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObjetivoInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Objetivo"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "objetivos"
+        ],
+        "summary": "Eliminar",
+        "responses": {
+          "204": {
+            "description": "Eliminado"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/tags": {
+      "get": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "Listar tags",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Tag"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "Crear tag",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/tags/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "Obtener por id",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "Actualizar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "Eliminar",
+        "responses": {
+          "204": {
+            "description": "Eliminado"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/leads": {
+      "get": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "Listar leads",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Lead"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "Crear lead",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lead"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/leads/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "Obtener por id",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lead"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "Actualizar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lead"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "Eliminar",
+        "responses": {
+          "204": {
+            "description": "Eliminado"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/clientes": {
+      "get": {
+        "tags": [
+          "clientes"
+        ],
+        "summary": "Listar clientes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Cliente"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "clientes"
+        ],
+        "summary": "Crear cliente",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClienteInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cliente"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/clientes/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "clientes"
+        ],
+        "summary": "Obtener por id",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cliente"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "clientes"
+        ],
+        "summary": "Actualizar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClienteInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cliente"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "clientes"
+        ],
+        "summary": "Eliminar",
+        "responses": {
+          "204": {
+            "description": "Eliminado"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/guardias": {
+      "get": {
+        "tags": [
+          "guardias"
+        ],
+        "summary": "Listar guardias",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Guardia"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "guardias"
+        ],
+        "summary": "Crear guardia",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuardiaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Guardia"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/guardias/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "guardias"
+        ],
+        "summary": "Obtener por id",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Guardia"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "guardias"
+        ],
+        "summary": "Actualizar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuardiaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Guardia"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "guardias"
+        ],
+        "summary": "Eliminar",
+        "responses": {
+          "204": {
+            "description": "Eliminado"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/francos": {
+      "get": {
+        "tags": [
+          "francos"
+        ],
+        "summary": "Listar francos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/FrancoEspecial"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "francos"
+        ],
+        "summary": "Crear franco",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrancoEspecialInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrancoEspecial"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/francos/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "francos"
+        ],
+        "summary": "Obtener por id",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrancoEspecial"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "francos"
+        ],
+        "summary": "Actualizar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrancoEspecialInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrancoEspecial"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "francos"
+        ],
+        "summary": "Eliminar",
+        "responses": {
+          "204": {
+            "description": "Eliminado"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/feriados": {
+      "get": {
+        "tags": [
+          "feriados"
+        ],
+        "summary": "Listar feriados",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Feriado"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "feriados"
+        ],
+        "summary": "Crear feriado",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeriadoInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feriado"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/feriados/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "feriados"
+        ],
+        "summary": "Obtener por id",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feriado"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "feriados"
+        ],
+        "summary": "Actualizar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeriadoInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feriado"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "feriados"
+        ],
+        "summary": "Eliminar",
+        "responses": {
+          "204": {
+            "description": "Eliminado"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Usuario actual (mapeado desde el token)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Usuario no aprovisionado (no ve nada)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/colaboradores/{id}/periodos": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "colaboradores"
+        ],
+        "summary": "Períodos de actividad del colaborador",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Periodo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "colaboradores"
+        ],
+        "summary": "Agregar período",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PeriodoInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Periodo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}/actividades": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "Actividades del lead",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CrmActividad"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "Registrar actividad (visita/videollamada/evento)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrmActividadInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmActividad"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}/ganar": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "post": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "Marcar ganado y crear el proyecto (hand-off CRM -> Kanban)",
+        "responses": {
+          "200": {
+            "description": "Lead ganado y proyecto creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "lead": {
+                      "$ref": "#/components/schemas/Lead"
+                    },
+                    "proyecto": {
+                      "$ref": "#/components/schemas/Proyecto"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/archivos": {
+      "post": {
+        "tags": [
+          "archivos"
+        ],
+        "summary": "Subir archivo a MinIO",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "leadId": {
+                    "type": "integer"
+                  },
+                  "contexto": {
+                    "type": "string"
+                  },
+                  "gpsLat": {
+                    "type": "number"
+                  },
+                  "gpsLng": {
+                    "type": "number"
+                  },
+                  "esBoceto": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Archivo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/archivos/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "archivos"
+        ],
+        "summary": "Metadatos del archivo",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Archivo"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "archivos"
+        ],
+        "summary": "Eliminar archivo (de la base y de MinIO)",
+        "responses": {
+          "204": {
+            "description": "Eliminado"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/grilla": {
+      "get": {
+        "tags": [
+          "grilla"
+        ],
+        "summary": "Entradas de grilla por rango/colaborador",
+        "parameters": [
+          {
+            "name": "colaboradorId",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrillaEntrada"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "grilla"
+        ],
+        "summary": "Crear o actualizar la entrada de un día (upsert por colaborador+fecha)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrillaEntradaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrillaEntrada"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/costos": {
+      "get": {
+        "tags": [
+          "costos"
+        ],
+        "summary": "Listar costos por mes",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CostoMensual"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/costos/{mes}": {
+      "parameters": [
+        {
+          "name": "mes",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "example": "2026-06"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "costos"
+        ],
+        "summary": "Costos de un mes",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostoMensual"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "costos"
+        ],
+        "summary": "Cargar/actualizar costos del mes (rol gerencial)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CostoMensualInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostoMensual"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "Id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "default": 1
+        }
+      },
+      "PageSize": {
+        "name": "pageSize",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "default": 50
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Token ausente o inválido",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No encontrado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Validation": {
+        "description": "Datos inválidos",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        }
+      },
+      "Colaborador": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "identitySub": {
+            "type": "string",
+            "nullable": true
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "manager",
+              "gerencial",
+              "colaborador",
+              "otras_areas",
+              "tercerizado"
+            ]
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "sector": {
+            "type": "string",
+            "nullable": true
+          },
+          "iniciales": {
+            "type": "string",
+            "nullable": true
+          },
+          "haceGuardia": {
+            "type": "boolean"
+          },
+          "fechaIngreso": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "cumpleDia": {
+            "type": "integer",
+            "nullable": true
+          },
+          "cumpleMes": {
+            "type": "integer",
+            "nullable": true
+          },
+          "activo": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ColaboradorInput": {
+        "type": "object",
+        "properties": {
+          "identitySub": {
+            "type": "string",
+            "nullable": true
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "manager",
+              "gerencial",
+              "colaborador",
+              "otras_areas",
+              "tercerizado"
+            ]
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "sector": {
+            "type": "string",
+            "nullable": true
+          },
+          "iniciales": {
+            "type": "string",
+            "nullable": true
+          },
+          "haceGuardia": {
+            "type": "boolean"
+          },
+          "fechaIngreso": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "cumpleDia": {
+            "type": "integer",
+            "nullable": true
+          },
+          "cumpleMes": {
+            "type": "integer",
+            "nullable": true
+          },
+          "activo": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Proyecto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "enfoque": {
+            "type": "string",
+            "enum": [
+              "Organización",
+              "Electrónica",
+              "Desarrollo web",
+              "Comercialización",
+              "Operación"
+            ],
+            "nullable": true
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "activo",
+              "pausado",
+              "cerrado"
+            ]
+          },
+          "leadId": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "ProyectoInput": {
+        "type": "object",
+        "properties": {
+          "nombre": {
+            "type": "string"
+          },
+          "enfoque": {
+            "type": "string",
+            "enum": [
+              "Organización",
+              "Electrónica",
+              "Desarrollo web",
+              "Comercialización",
+              "Operación"
+            ],
+            "nullable": true
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "activo",
+              "pausado",
+              "cerrado"
+            ]
+          },
+          "leadId": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "Tarea": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "proyectoId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "titulo": {
+            "type": "string"
+          },
+          "descripcion": {
+            "type": "string",
+            "nullable": true
+          },
+          "kanbanCol": {
+            "type": "string",
+            "enum": [
+              "backlog",
+              "todo",
+              "doing",
+              "done"
+            ]
+          },
+          "prioridad": {
+            "type": "string",
+            "enum": [
+              "baja",
+              "media",
+              "alta",
+              "urgente"
+            ]
+          },
+          "orden": {
+            "type": "integer"
+          },
+          "responsablesIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "tagsIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "TareaInput": {
+        "type": "object",
+        "properties": {
+          "proyectoId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "titulo": {
+            "type": "string"
+          },
+          "descripcion": {
+            "type": "string",
+            "nullable": true
+          },
+          "kanbanCol": {
+            "type": "string",
+            "enum": [
+              "backlog",
+              "todo",
+              "doing",
+              "done"
+            ]
+          },
+          "prioridad": {
+            "type": "string",
+            "enum": [
+              "baja",
+              "media",
+              "alta",
+              "urgente"
+            ]
+          },
+          "orden": {
+            "type": "integer"
+          },
+          "responsablesIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "tagsIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "Objetivo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "titulo": {
+            "type": "string"
+          },
+          "descripcion": {
+            "type": "string",
+            "nullable": true
+          },
+          "indicador": {
+            "type": "string",
+            "nullable": true
+          },
+          "meta": {
+            "type": "string",
+            "nullable": true
+          },
+          "peso": {
+            "type": "number",
+            "nullable": true
+          },
+          "fechaEsperada": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "enfoque": {
+            "type": "string",
+            "enum": [
+              "Organización",
+              "Electrónica",
+              "Desarrollo web",
+              "Comercialización",
+              "Operación"
+            ],
+            "nullable": true
+          },
+          "calculo": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "por_tags",
+              "por_actividad"
+            ]
+          },
+          "tagsIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "ObjetivoInput": {
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "type": "string"
+          },
+          "titulo": {
+            "type": "string"
+          },
+          "descripcion": {
+            "type": "string",
+            "nullable": true
+          },
+          "indicador": {
+            "type": "string",
+            "nullable": true
+          },
+          "meta": {
+            "type": "string",
+            "nullable": true
+          },
+          "peso": {
+            "type": "number",
+            "nullable": true
+          },
+          "fechaEsperada": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "enfoque": {
+            "type": "string",
+            "enum": [
+              "Organización",
+              "Electrónica",
+              "Desarrollo web",
+              "Comercialización",
+              "Operación"
+            ],
+            "nullable": true
+          },
+          "calculo": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "por_tags",
+              "por_actividad"
+            ]
+          },
+          "tagsIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "Tag": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "categoria": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "TagInput": {
+        "type": "object",
+        "properties": {
+          "nombre": {
+            "type": "string"
+          },
+          "categoria": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Lead": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "organizacion": {
+            "type": "string"
+          },
+          "contactoNombre": {
+            "type": "string",
+            "nullable": true
+          },
+          "telefono": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "ciudad": {
+            "type": "string",
+            "nullable": true
+          },
+          "fechaPrimerContacto": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "ownerId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "etapa": {
+            "type": "string",
+            "enum": [
+              "contacto",
+              "visita_agendada",
+              "visita_realizada",
+              "propuesta",
+              "negociacion",
+              "trial",
+              "ganado",
+              "perdido"
+            ]
+          },
+          "valorEstimadoUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "montoFacturadoUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "productos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "presupuestoEstado": {
+            "type": "object",
+            "nullable": true
+          },
+          "presupuestoAguaEstado": {
+            "type": "object",
+            "nullable": true
+          },
+          "coopcloudEstado": {
+            "type": "object",
+            "nullable": true
+          },
+          "coopcloudCostoMensual": {
+            "type": "number",
+            "nullable": true
+          },
+          "notas": {
+            "type": "string",
+            "nullable": true
+          },
+          "fuente": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "LeadInput": {
+        "type": "object",
+        "properties": {
+          "organizacion": {
+            "type": "string"
+          },
+          "contactoNombre": {
+            "type": "string",
+            "nullable": true
+          },
+          "telefono": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "ciudad": {
+            "type": "string",
+            "nullable": true
+          },
+          "fechaPrimerContacto": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "ownerId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "etapa": {
+            "type": "string",
+            "enum": [
+              "contacto",
+              "visita_agendada",
+              "visita_realizada",
+              "propuesta",
+              "negociacion",
+              "trial",
+              "ganado",
+              "perdido"
+            ]
+          },
+          "valorEstimadoUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "montoFacturadoUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "productos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "presupuestoEstado": {
+            "type": "object",
+            "nullable": true
+          },
+          "presupuestoAguaEstado": {
+            "type": "object",
+            "nullable": true
+          },
+          "coopcloudEstado": {
+            "type": "object",
+            "nullable": true
+          },
+          "coopcloudCostoMensual": {
+            "type": "number",
+            "nullable": true
+          },
+          "notas": {
+            "type": "string",
+            "nullable": true
+          },
+          "fuente": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Cliente": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "tipoCliente": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ClienteInput": {
+        "type": "object",
+        "properties": {
+          "nombre": {
+            "type": "string"
+          },
+          "tipoCliente": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Guardia": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "colaboradorId": {
+            "type": "integer"
+          },
+          "fechaInicio": {
+            "type": "string",
+            "format": "date"
+          },
+          "fechaFin": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "notas": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "GuardiaInput": {
+        "type": "object",
+        "properties": {
+          "colaboradorId": {
+            "type": "integer"
+          },
+          "fechaInicio": {
+            "type": "string",
+            "format": "date"
+          },
+          "fechaFin": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "notas": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "FrancoEspecial": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "colaboradorId": {
+            "type": "integer"
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date"
+          },
+          "tipo": {
+            "type": "string",
+            "nullable": true
+          },
+          "motivo": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "FrancoEspecialInput": {
+        "type": "object",
+        "properties": {
+          "colaboradorId": {
+            "type": "integer"
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date"
+          },
+          "tipo": {
+            "type": "string",
+            "nullable": true
+          },
+          "motivo": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Feriado": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date"
+          },
+          "nombre": {
+            "type": "string"
+          }
+        }
+      },
+      "FeriadoInput": {
+        "type": "object",
+        "properties": {
+          "fecha": {
+            "type": "string",
+            "format": "date"
+          },
+          "nombre": {
+            "type": "string"
+          }
+        }
+      },
+      "Me": {
+        "type": "object",
+        "properties": {
+          "colaboradorId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "identitySub": {
+            "type": "string"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "manager",
+              "gerencial",
+              "colaborador",
+              "otras_areas",
+              "tercerizado"
+            ]
+          },
+          "imgProfile": {
+            "type": "string",
+            "nullable": true
+          },
+          "aprovisionado": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Periodo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "colaboradorId": {
+            "type": "integer"
+          },
+          "desde": {
+            "type": "string",
+            "format": "date"
+          },
+          "hasta": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        }
+      },
+      "PeriodoInput": {
+        "type": "object",
+        "properties": {
+          "desde": {
+            "type": "string",
+            "format": "date"
+          },
+          "hasta": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        },
+        "required": [
+          "desde"
+        ]
+      },
+      "CrmActividad": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "leadId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "colaboradorId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "visita",
+              "videollamada",
+              "evento"
+            ]
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date"
+          },
+          "notas": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CrmActividadInput": {
+        "type": "object",
+        "properties": {
+          "colaboradorId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "visita",
+              "videollamada",
+              "evento"
+            ]
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date"
+          },
+          "notas": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "tipo",
+          "fecha"
+        ]
+      },
+      "Archivo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string",
+            "nullable": true
+          },
+          "tamano": {
+            "type": "integer",
+            "nullable": true
+          },
+          "gpsLat": {
+            "type": "number",
+            "nullable": true
+          },
+          "gpsLng": {
+            "type": "number",
+            "nullable": true
+          },
+          "esBoceto": {
+            "type": "boolean"
+          },
+          "leadId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "contexto": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "GrillaEntrada": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "colaboradorId": {
+            "type": "integer"
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "present",
+              "home_office",
+              "vacaciones",
+              "franco",
+              "franco_cumple",
+              "feriado",
+              "licencia",
+              "viaje"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "nullable": true
+          }
+        }
+      },
+      "GrillaEntradaInput": {
+        "type": "object",
+        "properties": {
+          "colaboradorId": {
+            "type": "integer"
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "present",
+              "home_office",
+              "vacaciones",
+              "franco",
+              "franco_cumple",
+              "feriado",
+              "licencia",
+              "viaje"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "nullable": true
+          }
+        },
+        "required": [
+          "colaboradorId",
+          "fecha"
+        ]
+      },
+      "CostoMensual": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "mes": {
+            "type": "string"
+          },
+          "costoLaboral": {
+            "type": "number",
+            "nullable": true
+          },
+          "cotizacionDolar": {
+            "type": "number",
+            "nullable": true
+          }
+        }
+      },
+      "CostoMensualInput": {
+        "type": "object",
+        "properties": {
+          "costoLaboral": {
+            "type": "number",
+            "nullable": true
+          },
+          "cotizacionDolar": {
+            "type": "number",
+            "nullable": true
+          }
+        }
+      }
+    }
+  }
+}

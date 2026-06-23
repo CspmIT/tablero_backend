@@ -1,0 +1,32 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: cooptech-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: cooptech
+      MYSQL_USER: cooptech
+      MYSQL_PASSWORD: cooptech
+    ports:
+      - "3306:3306"
+    volumes:
+      - cooptech_mysql:/var/lib/mysql
+
+  minio:
+    image: minio/minio:latest
+    container_name: cooptech-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: cooptech
+      MINIO_ROOT_PASSWORD: cooptech123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - cooptech_minio:/data
+
+volumes:
+  cooptech_mysql:
+  cooptech_minio:
