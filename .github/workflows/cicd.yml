@@ -28,24 +28,6 @@ jobs:
                   WITH_V: true
                   PRERELEASE: false
 
-    # ci:
-    #   needs: bump
-    #   runs-on: ubuntu-latest
-
-    #   steps:
-    #       - name: Checkout
-    #         uses: actions/checkout@v3
-
-    #       - name: install dependencies
-    #         run: |
-    #           npm install
-    #         working-directory: ./
-
-    #       - name: Run tests
-    #         run: |
-    #           npm run test
-    #         working-directory: ./
-
     cd:
         needs: bump
         runs-on: ubuntu-latest
