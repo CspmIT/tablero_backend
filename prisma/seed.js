@@ -2,22 +2,9 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Colaborador inicial (vos): queda con id 1, que es el usuario por defecto en modo dev.
-  const count = await prisma.colaborador.count();
-  if (count === 0) {
-    await prisma.colaborador.create({
-      data: {
-        nombre: 'Leonardo Depetris',
-        tipo: 'manager',
-        email: 'leonardo@coopmorteros.coop',
-        iniciales: 'LD',
-        haceGuardia: false,
-        activo: true,
-        identitySub: null, // se completará cuando conectemos el login real
-      },
-    });
-    console.log('Colaborador inicial creado (id 1).');
-  }
+  // Los usuarios del equipo (con su token_app) se cargan con un seeder aparte:
+  //   npm run db:seed:usuarios   (ver prisma/seedUsuarios.js)
+  // Este seed sólo deja datos de referencia comunes.
 
   // Algunas etiquetas de ejemplo
   const tags = ['Urgente', 'Cliente', 'Interno', 'Marca'];

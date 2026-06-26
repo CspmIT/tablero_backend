@@ -9,6 +9,7 @@ import swaggerUi from 'swagger-ui-express';
 import { authenticate } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import apiRouter from './routes/index.js';
+import { publicAuthRouter } from './routes/auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const openapi = JSON.parse(readFileSync(join(__dirname, '..', 'openapi.json'), 'utf-8'));
@@ -24,6 +25,10 @@ export function createApp() {
 
   // Documentación interactiva (sin auth)
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapi));
+
+  // Login (público, sin authenticate). Las rutas que no matchean acá (p.ej.
+  // /api/v1/auth/me) caen al router protegido de abajo.
+  app.use('/api/v1/auth', publicAuthRouter);
 
   // API (con autenticación)
   app.use('/api/v1', authenticate, apiRouter);

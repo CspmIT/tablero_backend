@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pkill -f \"node src/server.js\")",
+      "Bash(pkill -f \"node --watch src/server.js\")",
+      "Bash(pkill -f \"vite\")"
+    ]
+  }
+}

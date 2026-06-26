@@ -1,0 +1,9 @@
+node_modules
+.git
+.env
+*.log
+.vscode
+.claude
+.github
+docker-compose.yml
+scratchpad

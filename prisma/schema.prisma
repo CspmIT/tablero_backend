@@ -7,7 +7,8 @@
 // ============================================================================
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["omitApi"]
 }
 
 datasource db {
@@ -104,6 +105,10 @@ model Colaborador {
   id           Int          @id @default(autoincrement())
   // Vínculo con el servicio de identidad central. Null hasta el primer login mapeado.
   identitySub  String?         @unique
+  // Credencial de login (estilo Reconecta `token_app`): UUID único por usuario,
+  // asignado por el sistema central. NO se hashea. Se omite por defecto en TODAS
+  // las lecturas (ver lib/prisma.js) para no filtrarla; el login la lee explícito.
+  tokenApp     String?         @unique
   tipo         TipoColaborador @default(collaborator)
   nombre       String
   email        String?
