@@ -10,7 +10,7 @@ import { signLoginToken } from '../lib/jwt.js';
 // ---------------------------------------------------------------------------
 export const publicAuthRouter = Router();
 
-// POST /api/v1/auth/loginCooptech  { email, tokenApp } -> { token }
+// POST /api/auth/loginCooptech  { email, tokenApp } -> { token }
 // 1. Busca el colaborador por email.
 // 2. Valida que esté activo.
 // 3. Valida que el tokenApp coincida.
@@ -55,7 +55,7 @@ publicAuthRouter.post('/loginCooptech', async (req, res, next) => {
 });
 
 // ---------------------------------------------------------------------------
-//  Router PROTEGIDO (detrás de authenticate, montado en /api/v1/auth).
+//  Router PROTEGIDO (detrás de authenticate, montado en /api/auth).
 // ---------------------------------------------------------------------------
 const router = Router();
 

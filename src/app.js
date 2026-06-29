@@ -27,11 +27,11 @@ export function createApp() {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapi));
 
   // Login (público, sin authenticate). Las rutas que no matchean acá (p.ej.
-  // /api/v1/auth/me) caen al router protegido de abajo.
-  app.use('/api/v1/auth', publicAuthRouter);
+  // /api/auth/me) caen al router protegido de abajo.
+  app.use('/api/auth', publicAuthRouter);
 
   // API (con autenticación)
-  app.use('/api/v1', authenticate, apiRouter);
+  app.use('/api', authenticate, apiRouter);
 
   app.use(notFound);
   app.use(errorHandler);

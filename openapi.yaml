@@ -5,7 +5,7 @@ info:
   description: API REST del Tablero de Mando Cooptech. Single-tenant, uso interno.
     Autenticación delegada al servicio de identidad central (Bearer JWT).
 servers:
-- url: /api/v1
+- url: /api
 security:
 - bearerAuth: []
 tags:
