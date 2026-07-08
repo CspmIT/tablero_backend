@@ -15,7 +15,7 @@ export const publicAuthRouter = Router();
 // 2. Valida que esté activo.
 // 3. Valida que el tokenApp coincida.
 // 4. "Mapea" el usuario en el primer login (fija identitySub si estaba en null).
-// 5. Devuelve el JWT (exp 8h).
+// 5. Devuelve el JWT (exp 30 días).
 publicAuthRouter.post('/loginCooptech', async (req, res, next) => {
   try {
     const { email, tokenApp } = req.body || {};

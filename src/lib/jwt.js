@@ -5,9 +5,9 @@ import jwt from 'jsonwebtoken';
 //
 // El claim `sub` debe coincidir con `identitySub` porque es lo que usa el
 // middleware `authenticate` para mapear el token a un Colaborador.
-// Expiración: 8 horas (igual que Reconecta).
+// Expiración: 30 días (app de escritorio interna; evita re-login diario).
 
-const EXPIRES_IN_SECONDS = 8 * 60 * 60; // 8h
+const EXPIRES_IN_SECONDS = 30 * 24 * 60 * 60; // 30 días
 
 function getSecret() {
   // En prod debe estar AUTH_JWT_SECRET (el middleware lo usa para verificar).
