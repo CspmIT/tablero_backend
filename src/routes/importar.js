@@ -119,6 +119,7 @@ router.post('/', async (req, res, next) => {
     for (const o of arr(data.objetivos)) {
       try {
         const codigo = o.codigo || o.id;
+        const anio = Number(o.anio) || 2026; // los datos del standalone son de la gestión 2026
         const datos = {
           titulo: o.titulo || o.nombre || codigo || 'Objetivo',
           descripcion: o.descripcion || null,
@@ -130,9 +131,9 @@ router.post('/', async (req, res, next) => {
           asignadosTodos: !!o.asignadosTodos,
         };
         const creado = await prisma.objetivo.upsert({
-          where: { codigo },
+          where: { codigo_anio: { codigo, anio } },
           update: datos,
-          create: { codigo, ...datos },
+          create: { codigo, anio, ...datos },
         });
         objetivoMap[o.id] = creado.id; r.objetivos.creados++;
       } catch (e) { r.objetivos.errores.push(`${o.id}: ${e.message}`); }

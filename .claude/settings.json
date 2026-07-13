@@ -3,7 +3,14 @@
     "allow": [
       "Bash(pkill -f \"node src/server.js\")",
       "Bash(pkill -f \"node --watch src/server.js\")",
-      "Bash(pkill -f \"vite\")"
+      "Bash(pkill -f \"vite\")",
+      "Read(//home/cspmdesarrollo03/Descargas/**)",
+      "Bash(ls /home/cspmdesarrollo03/Descargas/ | head -50; echo ---; ls /home/cspmdesarrollo03/Documentos/proyectos/)",
+      "Read(//home/cspmdesarrollo03/Documentos/proyectos/**)",
+      "Bash(mkdir -p /tmp/claude-1000/-home-cspmdesarrollo03-Documentos-proyectos-tablero-backend/864e3e77-6f88-45a7-8e84-f3d0e3ab35ec/scratchpad/zips)",
+      "Bash(unzip -q -o /home/cspmdesarrollo03/Descargas/tablero_backend_13_07.zip -d back)",
+      "Bash(unzip -q -o /home/cspmdesarrollo03/Descargas/tablero_frontend_13_07.zip -d front)",
+      "Bash(npx prisma *)"
     ]
   }
 }

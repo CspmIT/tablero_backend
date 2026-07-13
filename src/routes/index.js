@@ -13,6 +13,8 @@ import tareasRouter from './tareas.js';
 import carryoverRouter from './carryover.js';
 import costosRouter from './costos.js';
 import importarRouter from './importar.js';
+import asistenteRouter from './asistente.js';
+import analisisRouter from './analisis.js';
 
 const router = Router();
 
@@ -158,7 +160,8 @@ router.use('/plantillas', crudRouter('plantilla', {
 }));
 
 router.use('/clientes', crudRouter('cliente', {
-  orderBy: { nombre: 'asc' }, allowed: ['nombre','tipoCliente'],
+  orderBy: { nombre: 'asc' },
+  allowed: ['nombre','tipoCliente','razonSocial','cuit','direccion','localidad','ciudad','celular','emailFacturacion'],
 }));
 
 router.use('/guardias', guardiasRouter);
@@ -179,6 +182,10 @@ router.use('/feriados', crudRouter('feriado', {
 router.use('/leads', leadsRouter);
 router.use('/archivos', archivosRouter);
 router.use('/grilla', grillaRouter);
+// Asistente IA (Claude vía API; herramientas filtradas por rol adentro)
+router.use('/asistente', asistenteRouter);
+// Análisis: reportes agregados (permisos por tipo adentro del router)
+router.use('/analisis', analisisRouter);
 // Costos: solo rol gerencial/manager puede escribir; lectura para todos los habilitados
 router.use('/costos', costosRouter);
 
