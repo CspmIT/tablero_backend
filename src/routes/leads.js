@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { graphConfigurado, crearEventoVideollamada } from '../lib/graph.js';
 
 const router = Router();
 
@@ -85,6 +86,141 @@ router.delete('/:id', async (req, res, next) => {
   try {
     await prisma.lead.delete({ where: { id: Number(req.params.id) } });
     res.status(204).end();
+  } catch (e) { next(e); }
+});
+
+// --- Videollamada desde el CRM (ola 1: impacto interno + .ics en el frontend) --
+// Crea UNA CrmActividad (tipo videollamada; una por reunión, sin importar los
+// asistentes, para no inflar el Objetivo 8) e impacta la grilla de CADA
+// colaborador involucrado agregando un ítem a su día (creando la entrada si no
+// existía). Todo en una transacción: o impacta completo, o no impacta.
+// Body: { fecha: 'YYYY-MM-DD', horaInicio: 'HH:MM', horaFin: 'HH:MM',
+//         colaboradoresIds: [int], notas?: string }
+router.post('/:id/videollamada', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const lead = await prisma.lead.findUnique({ where: { id }, include: { productos: true } });
+    if (!lead) throw new ApiError(404, 'not_found', 'Lead no encontrado');
+
+    const { fecha, horaInicio, horaFin, notas } = req.body || {};
+    const ids = (Array.isArray(req.body?.colaboradoresIds) ? req.body.colaboradoresIds : []).map(Number).filter(Boolean);
+    if (!fecha || !/^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) throw new ApiError(400, 'bad_request', 'Falta la fecha (YYYY-MM-DD)');
+    if (!horaInicio || !horaFin) throw new ApiError(400, 'bad_request', 'Faltan hora de inicio y fin');
+    if (!ids.length) throw new ApiError(400, 'bad_request', 'Indicá al menos un colaborador involucrado');
+
+    // Ola 2 (bandera): si Graph está configurado, el evento se crea en el Outlook
+    // de la casilla comercial con reunión de Teams e invitaciones automáticas.
+    // Si falla o no está configurado, se degrada a la ola 1 (.ics manual) sin
+    // frenar el impacto interno.
+    let graphInfo = null, graphError = null;
+    if (graphConfigurado()) {
+      try {
+        const involucrados = await prisma.colaborador.findMany({
+          where: { id: { in: ids } }, select: { email: true },
+        });
+        graphInfo = await crearEventoVideollamada({
+          organizacion: lead.organizacion,
+          fecha: String(fecha), horaInicio, horaFin,
+          notas: notas || null,
+          emailLead: lead.email || null,
+          contactoNombre: lead.contactoNombre || null,
+          emailsColaboradores: involucrados.map(c => c.email).filter(Boolean),
+        });
+      } catch (e) {
+        graphError = e.message || 'Error al crear el evento en Outlook';
+      }
+    }
+
+    const fechaD = new Date(String(fecha) + 'T00:00:00Z');
+    const rango = `${horaInicio}–${horaFin}`;
+    const textoItem = `Videollamada ${lead.organizacion} (${rango})`;
+    const tagsItem = lead.productos.map(p => p.producto);
+    const linkTeams = graphInfo?.joinUrl || null;
+    const notasAct = [`Videollamada ${rango}`, notas, linkTeams ? `Teams: ${linkTeams}` : null]
+      .filter(Boolean).join(' · ');
+
+    const resultado = await prisma.$transaction(async (tx) => {
+      const actividad = await tx.crmActividad.create({
+        data: {
+          leadId: id,
+          colaboradorId: req.colaborador?.id ?? null, // quien la agenda
+          tipo: 'videollamada',
+          fecha: fechaD,
+          notas: notasAct,
+        },
+      });
+      for (const colaboradorId of ids) {
+        const existente = await tx.grillaEntrada.findUnique({
+          where: { colaboradorId_fecha: { colaboradorId, fecha: fechaD } },
+        });
+        const items = Array.isArray(existente?.items) ? [...existente.items] : [];
+        // Idempotencia básica: no duplicar el mismo ítem si se agenda dos veces.
+        if (!items.some(it => it && it.text === textoItem)) {
+          items.push({ text: textoItem, wip: false, tags: tagsItem, ...(linkTeams ? { link: linkTeams } : {}) });
+        }
+        await tx.grillaEntrada.upsert({
+          where: { colaboradorId_fecha: { colaboradorId, fecha: fechaD } },
+          update: { items },
+          create: { colaboradorId, fecha: fechaD, items }, // estado: default (present)
+        });
+      }
+      return actividad;
+    });
+
+    res.status(201).json({
+      actividad: resultado,
+      impactados: ids,
+      item: textoItem,
+      modo: graphInfo ? 'graph' : 'ics',
+      joinUrl: linkTeams,
+      webLink: graphInfo?.webLink || null,
+      graphError, // null salvo que Graph esté configurado y haya fallado
+    });
+  } catch (e) { next(e); }
+});
+
+// --- Datos de facturación (viven en Cliente, no en el lead) -----------------
+const FACT_FIELDS = ['razonSocial', 'cuit', 'direccion', 'localidad', 'ciudad', 'celular', 'emailFacturacion'];
+
+// Ficha de facturación para prellenar el formulario: el Cliente vinculado o,
+// si no hay vínculo todavía, el que coincida por nombre con la organización.
+router.get('/:id/facturacion', async (req, res, next) => {
+  try {
+    const lead = await prisma.lead.findUnique({ where: { id: Number(req.params.id) } });
+    if (!lead) throw new ApiError(404, 'not_found', 'Lead no encontrado');
+    const cliente = lead.clienteId
+      ? await prisma.cliente.findUnique({ where: { id: lead.clienteId } })
+      : await prisma.cliente.findUnique({ where: { nombre: lead.organizacion } });
+    res.json({ cliente });
+  } catch (e) { next(e); }
+});
+
+// Guardar facturación: crea o completa la ficha del Cliente (por vínculo o por
+// nombre = organización del lead) y deja el lead vinculado. Sin duplicación:
+// si el Cliente ya existía, solo se actualizan los campos enviados.
+router.put('/:id/facturacion', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const lead = await prisma.lead.findUnique({ where: { id } });
+    if (!lead) throw new ApiError(404, 'not_found', 'Lead no encontrado');
+
+    const datos = {};
+    for (const k of FACT_FIELDS) {
+      if (k in (req.body || {})) datos[k] = req.body[k] === '' ? null : String(req.body[k]);
+    }
+
+    let cliente;
+    if (lead.clienteId) {
+      cliente = await prisma.cliente.update({ where: { id: lead.clienteId }, data: datos });
+    } else {
+      cliente = await prisma.cliente.upsert({
+        where: { nombre: lead.organizacion },
+        update: datos,
+        create: { nombre: lead.organizacion, ...datos },
+      });
+      await prisma.lead.update({ where: { id }, data: { clienteId: cliente.id } });
+    }
+    res.json({ cliente });
   } catch (e) { next(e); }
 });
 

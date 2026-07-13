@@ -260,7 +260,7 @@ model TareaTag {
 
 model Objetivo {
   id            Int              @id @default(autoincrement())
-  codigo        String              @unique // p.ej. "OE08"
+  codigo        String              // p.ej. "OE08"; único POR AÑO (ver @@unique abajo)
   titulo        String              @db.Text
   descripcion   String?             @db.Text
   indicador     String?             @db.Text
@@ -284,6 +284,10 @@ model Objetivo {
   tags             ObjetivoTag[]
   aportesActividad ObjetivoAporteActividad[]
   archivos         Archivo[]
+
+  // El mismo código puede repetirse en distintos años de gestión (OE01 de 2025,
+  // 2026 y 2027 son objetivos distintos); lo que no puede repetirse es el par.
+  @@unique([codigo, anio])
 }
 
 model ObjetivoTag {
@@ -361,8 +365,13 @@ model Lead {
   proyectos   Proyecto[]
   archivos    Archivo[]
 
+  // Ficha de Cliente asociada (se crea/completa al cargar facturación o al ganar).
+  clienteId Int?
+  clienteRef Cliente? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+
   @@index([etapa])
   @@index([ownerId])
+  @@index([clienteId])
 }
 
 // Producto(s) de interés de un lead. String (no enum) para poder sumar productos
@@ -377,12 +386,24 @@ model LeadProducto {
 }
 
 // Catálogo de clientes/organizaciones.
+// Datos de facturación (pedido Carola, 07/07): viven acá, NO en el lead. Se
+// completan opcionalmente desde el lead (tilde) y son requeridos en el hand-off
+// a "Ganado". Todos opcionales a nivel de base; la obligatoriedad la impone la UI.
 model Cliente {
   id          Int   @id @default(autoincrement())
   nombre      String   @unique
   tipoCliente String?  @default("Cooperativa")
+  razonSocial String?
+  cuit        String?
+  direccion   String?
+  localidad   String?
+  ciudad      String?
+  celular     String?
+  emailFacturacion String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  leads Lead[]
 }
 
 // Actividades de CRM que alimentan el Objetivo 8 (visibilidad de marca).
@@ -529,3 +550,11 @@ model CostoMensual {
 //  NOTA: el módulo de Materiales/inventario queda fuera de este esquema inicial
 //  (todavía no existe en el tablero). Se agrega cuando se diseñe, en su propia ola.
 // ---------------------------------------------------------------------------
+
+// Configuración editable desde la app (p.ej. clave de API del asistente).
+// El valor se guarda CIFRADO (AES-256-GCM con clave derivada de AUTH_JWT_SECRET).
+model Configuracion {
+  clave     String   @id
+  valor     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
