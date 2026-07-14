@@ -364,6 +364,7 @@ model Lead {
   actividades CrmActividad[]
   proyectos   Proyecto[]
   archivos    Archivo[]
+  tareasSeguimiento LeadTarea[]
 
   // Ficha de Cliente asociada (se crea/completa al cargar facturación o al ganar).
   clienteId Int?
@@ -557,4 +558,22 @@ model Configuracion {
   clave     String   @id
   valor     String   @db.Text
   updatedAt DateTime @updatedAt
+}
+
+// Tareas de seguimiento de un lead (pedido Carola 14/07, estilo Kommo):
+// pendientes con fecha límite que se completan con un resultado opcional.
+model LeadTarea {
+  id           Int       @id @default(autoincrement())
+  leadId       Int
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  texto        String    @db.Text
+  fechaLimite  DateTime? @db.Date
+  done         Boolean   @default(false)
+  resultado    String?   @db.Text
+  creadorId    Int?
+  completadoAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([leadId, done])
 }
