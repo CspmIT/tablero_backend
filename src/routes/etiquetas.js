@@ -8,6 +8,32 @@ import { requireTipo } from '../middleware/auth.js';
 import { ApiError } from '../middleware/errorHandler.js';
 
 const router = Router();
+
+// GET /etiquetas/sugerencias → nombres únicos en uso (registro Tag + grilla),
+// ordenados por frecuencia. Abierto a todos los aprovisionados: alimenta el
+// autocompletado del editor del día. (Las rutas de administración, más abajo,
+// siguen siendo solo-manager.)
+router.get('/sugerencias', async (req, res, next) => {
+  try {
+    const [entradas, registro] = await Promise.all([
+      prisma.grillaEntrada.findMany({ where: { NOT: { items: { equals: null } } }, select: { items: true } }),
+      prisma.tag.findMany({ select: { nombre: true } }),
+    ]);
+    const freq = new Map();
+    for (const t of registro) freq.set(t.nombre, (freq.get(t.nombre) || 0) + 1);
+    for (const e of entradas) {
+      for (const it of (Array.isArray(e.items) ? e.items : [])) {
+        for (const t of (Array.isArray(it?.tags) ? it.tags : [])) {
+          const n = String(t);
+          freq.set(n, (freq.get(n) || 0) + 1);
+        }
+      }
+    }
+    const nombres = [...freq.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n);
+    res.json({ sugerencias: nombres });
+  } catch (e) { next(e); }
+});
+
 router.use(requireTipo('manager'));
 
 // Normalización: minúsculas, sin acentos, solo alfanumérico ("Mas Agua" → "masagua").

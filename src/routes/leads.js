@@ -36,7 +36,11 @@ router.get('/', async (req, res, next) => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize) || 50));
     const [rows, total] = await Promise.all([
-      prisma.lead.findMany({ where, include: { productos: true }, orderBy: { updatedAt: 'desc' },
+      prisma.lead.findMany({ where, include: {
+        productos: true,
+        // Tareas pendientes (livianas) para el distintivo de vencidas en la tarjeta.
+        tareasSeguimiento: { where: { done: false }, select: { id: true, fechaLimite: true } },
+      }, orderBy: { updatedAt: 'desc' },
         skip: (page - 1) * pageSize, take: pageSize }),
       prisma.lead.count({ where }),
     ]);
@@ -176,6 +180,63 @@ router.post('/:id/videollamada', async (req, res, next) => {
       webLink: graphInfo?.webLink || null,
       graphError, // null salvo que Graph esté configurado y haya fallado
     });
+  } catch (e) { next(e); }
+});
+
+// --- Tareas de seguimiento del lead (estilo checklist con vencimiento) --------
+router.get('/:id/tareas', async (req, res, next) => {
+  try {
+    const tareas = await prisma.leadTarea.findMany({
+      where: { leadId: Number(req.params.id) },
+      orderBy: [{ done: 'asc' }, { fechaLimite: 'asc' }, { createdAt: 'asc' }],
+    });
+    res.json({ tareas });
+  } catch (e) { next(e); }
+});
+
+router.post('/:id/tareas', async (req, res, next) => {
+  try {
+    const texto = String(req.body?.texto || '').trim();
+    if (!texto) throw new ApiError(400, 'bad_request', 'Falta el texto de la tarea');
+    const fechaLimite = req.body?.fechaLimite ? new Date(String(req.body.fechaLimite) + 'T00:00:00Z') : null;
+    const tarea = await prisma.leadTarea.create({
+      data: {
+        leadId: Number(req.params.id),
+        texto,
+        fechaLimite,
+        creadorId: req.colaborador?.id ?? null,
+      },
+    });
+    res.status(201).json(tarea);
+  } catch (e) { next(e); }
+});
+
+// PATCH: completar (done + resultado opcional), reabrir o editar texto/fecha.
+router.patch('/:id/tareas/:tareaId', async (req, res, next) => {
+  try {
+    const data = {};
+    if ('done' in (req.body || {})) {
+      data.done = Boolean(req.body.done);
+      data.completadoAt = data.done ? new Date() : null;
+      if (!data.done) data.resultado = null; // reabrir limpia el resultado
+    }
+    if ('resultado' in (req.body || {})) data.resultado = req.body.resultado ? String(req.body.resultado) : null;
+    if ('texto' in (req.body || {}) && String(req.body.texto).trim()) data.texto = String(req.body.texto).trim();
+    if ('fechaLimite' in (req.body || {})) {
+      data.fechaLimite = req.body.fechaLimite ? new Date(String(req.body.fechaLimite) + 'T00:00:00Z') : null;
+    }
+    const tarea = await prisma.leadTarea.update({
+      where: { id: Number(req.params.tareaId) },
+      data,
+    });
+    res.json(tarea);
+  } catch (e) { next(e); }
+});
+
+router.delete('/:id/tareas/:tareaId', async (req, res, next) => {
+  try {
+    await prisma.leadTarea.delete({ where: { id: Number(req.params.tareaId) } });
+    res.status(204).end();
   } catch (e) { next(e); }
 });
 
