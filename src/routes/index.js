@@ -15,6 +15,7 @@ import costosRouter from './costos.js';
 import importarRouter from './importar.js';
 import asistenteRouter from './asistente.js';
 import analisisRouter from './analisis.js';
+import etiquetasRouter from './etiquetas.js';
 
 const router = Router();
 
@@ -186,6 +187,8 @@ router.use('/grilla', grillaRouter);
 router.use('/asistente', asistenteRouter);
 // Análisis: reportes agregados (permisos por tipo adentro del router)
 router.use('/analisis', analisisRouter);
+// Etiquetas: inventario de uso y unificación de variantes (solo manager)
+router.use('/etiquetas', etiquetasRouter);
 // Costos: solo rol gerencial/manager puede escribir; lectura para todos los habilitados
 router.use('/costos', costosRouter);
 

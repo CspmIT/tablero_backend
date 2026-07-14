@@ -6,6 +6,7 @@
 // equivale a 8 hs repartidas en partes iguales entre los ítems válidos del día
 // (mismo criterio que fmtWipHours del tablero). Es una estimación declarada.
 import { prisma } from './prisma.js';
+import { normalizarTag } from '../routes/etiquetas.js';
 
 const HORAS_DIA = 8;
 const DIAS_TRABAJADOS = ['present', 'home_office', 'viaje'];
@@ -57,7 +58,10 @@ const TOOLS = [
       const entradas = await prisma.grillaEntrada.findMany({
         where, select: { estado: true, items: true, colaboradorId: true },
       });
-      const horasPorTag = {}; const horasSinTag = { horas: 0 };
+      // Agrupamos por clave NORMALIZADA (minúsculas, sin acentos ni símbolos) para
+      // que variantes como "+Agua"/"masagua" no fragmenten las horas; se muestra
+      // la forma escrita más frecuente de cada grupo.
+      const grupos = {}; const horasSinTag = { horas: 0 };
       let diasTrabajados = 0;
       for (const e of entradas) {
         if (!DIAS_TRABAJADOS.includes(e.estado)) continue;
@@ -69,16 +73,25 @@ const TOOLS = [
           const tags = Array.isArray(it.tags) ? it.tags : [];
           if (!tags.length) { horasSinTag.horas += horasItem; continue; }
           for (const t of tags) {
-            const k = String(t);
-            horasPorTag[k] = (horasPorTag[k] || 0) + horasItem;
+            const clave = normalizarTag(t);
+            if (!grupos[clave]) grupos[clave] = { horas: 0, formas: {} };
+            grupos[clave].horas += horasItem;
+            grupos[clave].formas[String(t)] = (grupos[clave].formas[String(t)] || 0) + 1;
           }
         }
       }
-      const redondear = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v * 10) / 10]));
+      const horasPorTag = {};
+      const variantesDetectadas = {};
+      for (const g of Object.values(grupos)) {
+        const formas = Object.entries(g.formas).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+        horasPorTag[formas[0]] = Math.round(g.horas * 10) / 10;
+        if (formas.length > 1) variantesDetectadas[formas[0]] = formas.slice(1);
+      }
       return {
-        criterio: `estimación: ${HORAS_DIA} hs por día trabajado, repartidas entre los ítems del día`,
+        criterio: `estimación: ${HORAS_DIA} hs por día trabajado, repartidas entre los ítems del día; variantes de escritura agrupadas`,
         diasTrabajados,
-        horasPorEtiqueta: redondear(horasPorTag),
+        horasPorEtiqueta: horasPorTag,
+        variantesAgrupadas: Object.keys(variantesDetectadas).length ? variantesDetectadas : undefined,
         horasSinEtiqueta: Math.round(horasSinTag.horas * 10) / 10,
       };
     },
