@@ -68,8 +68,14 @@ const TOOLS = [
         const items = (Array.isArray(e.items) ? e.items : []).filter(i => i && String(i.text || '').trim());
         diasTrabajados += 1;
         if (!items.length) continue;
-        const horasItem = HORAS_DIA / items.length;
+        // Horas por ítem: explícitas si el colaborador las cargó; el resto del
+        // día (8 hs - explícitas) se reparte entre los ítems sin especificar.
+        // Días viejos sin horas cargadas → reparto equitativo (compatibilidad).
+        const sumExpl = items.reduce((a, it) => a + (Number(it.horas) > 0 ? Number(it.horas) : 0), 0);
+        const sinEspecificar = items.filter((it) => !(Number(it.horas) > 0)).length;
+        const horasAuto = sinEspecificar ? Math.max(0, HORAS_DIA - sumExpl) / sinEspecificar : 0;
         for (const it of items) {
+          const horasItem = Number(it.horas) > 0 ? Number(it.horas) : horasAuto;
           const tags = Array.isArray(it.tags) ? it.tags : [];
           if (!tags.length) { horasSinTag.horas += horasItem; continue; }
           for (const t of tags) {
@@ -88,7 +94,7 @@ const TOOLS = [
         if (formas.length > 1) variantesDetectadas[formas[0]] = formas.slice(1);
       }
       return {
-        criterio: `estimación: ${HORAS_DIA} hs por día trabajado, repartidas entre los ítems del día; variantes de escritura agrupadas`,
+        criterio: `horas declaradas por ítem cuando existen; el resto del día (base ${HORAS_DIA} hs) repartido entre los ítems sin especificar; variantes de escritura agrupadas`,
         diasTrabajados,
         horasPorEtiqueta: horasPorTag,
         variantesAgrupadas: Object.keys(variantesDetectadas).length ? variantesDetectadas : undefined,

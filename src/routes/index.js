@@ -16,6 +16,8 @@ import importarRouter from './importar.js';
 import asistenteRouter from './asistente.js';
 import analisisRouter from './analisis.js';
 import etiquetasRouter from './etiquetas.js';
+import integracionesRouter from './integraciones.js';
+import deseosRouter from './deseos.js';
 
 const router = Router();
 
@@ -189,6 +191,10 @@ router.use('/asistente', asistenteRouter);
 router.use('/analisis', analisisRouter);
 // Etiquetas: inventario de uso y unificación de variantes (solo manager)
 router.use('/etiquetas', etiquetasRouter);
+// Integraciones: gestión de credenciales Graph desde la app (solo manager)
+router.use('/integraciones/graph', integracionesRouter);
+// Mis Deseos: pedidos de desarrollo de cualquier colaborador
+router.use('/deseos', deseosRouter);
 // Costos: solo rol gerencial/manager puede escribir; lectura para todos los habilitados
 router.use('/costos', costosRouter);
 

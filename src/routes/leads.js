@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
-import { graphConfigurado, crearEventoVideollamada } from '../lib/graph.js';
+import { graphConfigurado, crearEventoVideollamada, resolverGraphConfig, diasParaVencer } from '../lib/graph.js';
 
 const router = Router();
 
@@ -116,8 +116,8 @@ router.post('/:id/videollamada', async (req, res, next) => {
     // de la casilla comercial con reunión de Teams e invitaciones automáticas.
     // Si falla o no está configurado, se degrada a la ola 1 (.ics manual) sin
     // frenar el impacto interno.
-    let graphInfo = null, graphError = null;
-    if (graphConfigurado()) {
+    let graphInfo = null, graphError = null, avisoVencimiento = null;
+    if (await graphConfigurado()) {
       try {
         const involucrados = await prisma.colaborador.findMany({
           where: { id: { in: ids } }, select: { email: true },
@@ -130,6 +130,13 @@ router.post('/:id/videollamada', async (req, res, next) => {
           contactoNombre: lead.contactoNombre || null,
           emailsColaboradores: involucrados.map(c => c.email).filter(Boolean),
         });
+        const cred = await resolverGraphConfig();
+        const dias = diasParaVencer(cred?.vence);
+        if (dias != null && dias <= 30) {
+          avisoVencimiento = dias < 0
+            ? 'El secreto de la integración con Outlook figura VENCIDO: renovarlo cuanto antes.'
+            : `El secreto de la integración con Outlook vence en ${dias} día${dias === 1 ? '' : 's'}: pedir la renovación.`;
+        }
       } catch (e) {
         graphError = e.message || 'Error al crear el evento en Outlook';
       }
@@ -179,6 +186,7 @@ router.post('/:id/videollamada', async (req, res, next) => {
       joinUrl: linkTeams,
       webLink: graphInfo?.webLink || null,
       graphError, // null salvo que Graph esté configurado y haya fallado
+      avisoVencimiento,
     });
   } catch (e) { next(e); }
 });

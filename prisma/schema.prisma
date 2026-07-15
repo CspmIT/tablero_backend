@@ -577,3 +577,32 @@ model LeadTarea {
 
   @@index([leadId, done])
 }
+
+// "Mis Deseos": pedidos de desarrollo/mejora de cualquier colaborador de la
+// cooperativa. Formaliza el embudo de demanda: solicitud → revisión (con
+// Jorge) → respuesta → si se aprueba, pasa como card al backlog del kanban.
+enum DeseoEstado {
+  borrador
+  enviado
+  en_revision
+  aprobado
+  rechazado
+  requiere_cambios
+}
+
+model Deseo {
+  id             Int         @id @default(autoincrement())
+  titulo         String
+  descripcion    String      @db.Text
+  solicitanteId  Int
+  fechaNecesidad DateTime?   @db.Date // estimada por el solicitante
+  estado         DeseoEstado @default(borrador)
+  respuesta      String?     @db.Text // obligatoria al rechazar
+  respondidoPorId Int?
+  respondidoAt   DateTime?
+  tareaId        Int?        // card creada en el kanban al aprobar
+  createdAt      DateTime    @default(now()) // fecha de solicitud
+  updatedAt      DateTime    @updatedAt
+
+  @@index([solicitanteId, estado])
+}
