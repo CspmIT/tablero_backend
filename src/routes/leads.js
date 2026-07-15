@@ -63,6 +63,61 @@ router.post('/', async (req, res, next) => {
 });
 
 // Obtener
+// --- Vista técnica: leads en "Visita Técnica" con datos mínimos ------------
+// Para técnicos y tercerizados: lo necesario para hacer el relevamiento in
+// situ (organización, localidad, contacto) SIN el tratamiento comercial del
+// lead (valores, tareas, actividades, notas). Incluye el estado del
+// relevamiento +Agua para retomarlo/crearlo desde la solapa Visitas técnicas.
+router.get('/visitas-tecnicas', async (req, res, next) => {
+  try {
+    const filas = await prisma.lead.findMany({
+      where: { etapa: 'visita_realizada' },
+      select: {
+        id: true, organizacion: true, ciudad: true,
+        contactoNombre: true, telefono: true, email: true,
+        productos: { select: { producto: true } },
+        presupuestoAguaEstado: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    // La lista viaja LIVIANA: el estado del relevamiento puede pesar megas
+    // (fotos como data-URI). Acá va solo un resumen; el estado completo se
+    // baja al abrir el relevamiento (GET /leads/:id/relevamiento-agua).
+    const leads = filas.map(({ presupuestoAguaEstado, ...resto }) => ({
+      ...resto,
+      relevamiento: {
+        iniciado: !!presupuestoAguaEstado,
+        criteria: presupuestoAguaEstado?.criteria?.metadata || null,
+      },
+    }));
+    res.json({ leads });
+  } catch (e) { next(e); }
+});
+
+// Baja el estado completo del relevamiento de UN lead (al abrirlo).
+router.get('/:id/relevamiento-agua', async (req, res, next) => {
+  try {
+    const lead = await prisma.lead.findUnique({
+      where: { id: Number(req.params.id) },
+      select: { presupuestoAguaEstado: true },
+    });
+    res.json({ estado: lead?.presupuestoAguaEstado ?? null });
+  } catch (e) { next(e); }
+});
+
+// Guarda SOLO el estado del relevamiento +Agua (autosave desde la vista
+// técnica): no permite tocar ningún otro campo del lead.
+router.put('/:id/relevamiento-agua', async (req, res, next) => {
+  try {
+    await prisma.lead.update({
+      where: { id: Number(req.params.id) },
+      data: { presupuestoAguaEstado: req.body?.estado ?? null },
+    });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const l = await prisma.lead.findUnique({ where: { id: Number(req.params.id) }, include: { productos: true } });

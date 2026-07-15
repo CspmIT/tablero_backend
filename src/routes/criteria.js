@@ -1,0 +1,108 @@
+// CriterIA — endpoints productivos del motor (caso C / Copa IA).
+// El iframe agua.html NUNCA llama a Claude: manda todo por postMessage al
+// tablero, el tablero llama acá, y este backend es el único frente a la API.
+// Las imágenes llegan como data-URI ya reescaladas por el wizard (canvas del
+// cliente, ~1100 px): sin dependencias nuevas de imagen en el servidor.
+import { Router } from 'express';
+import { llamarClaude } from '../lib/anthropic.js';
+import { SYSTEM_GENERAR, SYSTEM_PREGUNTAS } from '../lib/criteriaPrompt.js';
+import { ApiError } from '../middleware/errorHandler.js';
+
+const router = Router();
+
+const MAX_IMAGENES = 20;
+const MAX_DATAURI = 2_500_000; // ~1.8 MB reales por imagen, de sobra para 1100 px
+
+function bloquesImagen(imagenes) {
+  const lista = Array.isArray(imagenes) ? imagenes.slice(0, MAX_IMAGENES) : [];
+  const bloques = [];
+  for (const img of lista) {
+    const dataUri = typeof img === 'string' ? img : img?.data;
+    const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/s.exec(String(dataUri || ''));
+    if (!m) continue;
+    if (m[2].length > MAX_DATAURI) throw new ApiError(413, 'imagen_grande', 'Una imagen supera el tamaño máximo; el wizard debe reescalarla');
+    bloques.push({ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } });
+    const epigrafe = typeof img === 'object' && img?.caption ? String(img.caption) : null;
+    const boceto = typeof img === 'object' && img?.is_sketch;
+    if (epigrafe || boceto) bloques.push({ type: 'text', text: `(${boceto ? 'BOCETO a mano' : 'foto'}${epigrafe ? ` — epígrafe: ${epigrafe}` : ''})` });
+  }
+  return bloques;
+}
+
+function armarContenido({ relevamiento, imagenes, epigrafesNoEnviadas, respuestas }) {
+  if (!relevamiento || typeof relevamiento !== 'object') {
+    throw new ApiError(400, 'bad_request', 'Falta el relevamiento');
+  }
+  const contenido = [
+    { type: 'text', text: 'RELEVAMIENTO DE CAMPO (datos estructurados):\n' + JSON.stringify(relevamiento) },
+  ];
+  // Los epígrafes de TODAS las fotos viajan como texto, aunque la imagen no se
+  // procese por visión (decisión de diseño: el texto ya dice lo que importa).
+  if (Array.isArray(epigrafesNoEnviadas) && epigrafesNoEnviadas.length) {
+    contenido.push({ type: 'text', text: 'EPÍGRAFES DE FOTOS NO ADJUNTADAS (referencia):\n- ' + epigrafesNoEnviadas.map(String).join('\n- ') });
+  }
+  const imgs = bloquesImagen(imagenes);
+  if (imgs.length) {
+    contenido.push({ type: 'text', text: `FOTOS Y BOCETOS DEL RELEVAMIENTO (${imgs.filter(b => b.type === 'image').length} imágenes):` });
+    contenido.push(...imgs);
+  }
+  if (Array.isArray(respuestas) && respuestas.length) {
+    contenido.push({
+      type: 'text',
+      text: 'RESPUESTAS ACLARATORIAS DEL TÉCNICO EN CAMPO:\n' + respuestas
+        .filter(r => r && (r.respuesta || '').trim())
+        .map(r => `P: ${r.pregunta}\nR: ${r.respuesta}`).join('\n\n'),
+    });
+  }
+  return contenido;
+}
+
+function parsearJson(data, etiqueta) {
+  const texto = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  try {
+    return JSON.parse(texto.replace(/^```json?\s*|```\s*$/g, '').trim());
+  } catch {
+    throw new ApiError(502, 'criteria_salida', `CriterIA no devolvió ${etiqueta} válido; reintentá la generación`);
+  }
+}
+
+// POST /criteria/preguntas { relevamiento, imagenes?, epigrafesNoEnviadas? }
+// → { preguntas: [≤5], tokens }
+router.post('/preguntas', async (req, res, next) => {
+  try {
+    const contenido = armarContenido(req.body || {});
+    contenido.push({ type: 'text', text: 'Devolvé SOLO el JSON de preguntas.' });
+    const data = await llamarClaude({
+      system: SYSTEM_PREGUNTAS,
+      messages: [{ role: 'user', content: contenido }],
+      maxTokens: 2000,
+    });
+    const out = parsearJson(data, 'las preguntas');
+    res.json({
+      preguntas: (out.preguntas || []).slice(0, 5),
+      tokens: { entrada: data.usage?.input_tokens, salida: data.usage?.output_tokens },
+    });
+  } catch (e) { next(e); }
+});
+
+// POST /criteria/generar { relevamiento, imagenes?, epigrafesNoEnviadas?, respuestas? }
+// → { planteo, tokens, modelo }
+router.post('/generar', async (req, res, next) => {
+  try {
+    const contenido = armarContenido(req.body || {});
+    contenido.push({ type: 'text', text: 'Componé el planteo aplicando el criterio. Respondé SOLO el JSON.' });
+    const data = await llamarClaude({
+      system: SYSTEM_GENERAR,
+      messages: [{ role: 'user', content: contenido }],
+      maxTokens: 16000,
+    });
+    const planteo = parsearJson(data, 'un planteo');
+    res.json({
+      planteo,
+      modelo: data.model,
+      tokens: { entrada: data.usage?.input_tokens, salida: data.usage?.output_tokens },
+    });
+  } catch (e) { next(e); }
+});
+
+export default router;

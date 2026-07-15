@@ -18,6 +18,7 @@ import analisisRouter from './analisis.js';
 import etiquetasRouter from './etiquetas.js';
 import integracionesRouter from './integraciones.js';
 import deseosRouter from './deseos.js';
+import criteriaRouter from './criteria.js';
 
 const router = Router();
 
@@ -195,6 +196,8 @@ router.use('/etiquetas', etiquetasRouter);
 router.use('/integraciones/graph', integracionesRouter);
 // Mis Deseos: pedidos de desarrollo de cualquier colaborador
 router.use('/deseos', deseosRouter);
+// CriterIA: composición del plan propuesta +Agua (caso C)
+router.use('/criteria', criteriaRouter);
 // Costos: solo rol gerencial/manager puede escribir; lectura para todos los habilitados
 router.use('/costos', costosRouter);
 
