@@ -8,30 +8,90 @@
 //   GRAPH_CLIENT_SECRET  Valor del secreto (vence: agendar renovación)
 //   GRAPH_CASILLA        Casilla comercial sobre la que se crean los eventos
 //
-// Si falta alguna, graphConfigurado() da false y el flujo cae al .ics (ola 1).
+// Desde el 14/07 las credenciales también pueden cargarse DESDE LA APP (solo
+// manager, engranaje en el CRM): se guardan cifradas en Configuracion y tienen
+// prioridad sobre las variables de entorno. Se registra además el VENCIMIENTO
+// del secreto para avisar antes de que expire.
 import { ApiError } from '../middleware/errorHandler.js';
+import { getConfig, setConfig } from './config.js';
+
+export const GRAPH_KEYS = {
+  tenantId: 'graph_tenant_id',
+  clientId: 'graph_client_id',
+  clientSecret: 'graph_client_secret',
+  casilla: 'graph_casilla',
+  vence: 'graph_secret_vence',
+};
 
 const TZ = 'America/Argentina/Cordoba';
 const LOGIN_URL = (tenant) => `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`;
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 
-export function graphConfigurado() {
-  return Boolean(process.env.GRAPH_TENANT_ID && process.env.GRAPH_CLIENT_ID
-    && process.env.GRAPH_CLIENT_SECRET && process.env.GRAPH_CASILLA);
+// Resolución de credenciales: Configuracion (app) → variables de entorno.
+export async function resolverGraphConfig() {
+  const [tenantId, clientId, clientSecret, casilla, vence] = await Promise.all([
+    getConfig(GRAPH_KEYS.tenantId), getConfig(GRAPH_KEYS.clientId),
+    getConfig(GRAPH_KEYS.clientSecret), getConfig(GRAPH_KEYS.casilla),
+    getConfig(GRAPH_KEYS.vence),
+  ]);
+  if (tenantId && clientId && clientSecret && casilla) {
+    return { origen: 'db', tenantId, clientId, clientSecret, casilla, vence: vence || null };
+  }
+  if (process.env.GRAPH_TENANT_ID && process.env.GRAPH_CLIENT_ID
+    && process.env.GRAPH_CLIENT_SECRET && process.env.GRAPH_CASILLA) {
+    return {
+      origen: 'env',
+      tenantId: process.env.GRAPH_TENANT_ID,
+      clientId: process.env.GRAPH_CLIENT_ID,
+      clientSecret: process.env.GRAPH_CLIENT_SECRET,
+      casilla: process.env.GRAPH_CASILLA,
+      vence: process.env.GRAPH_SECRET_VENCE || null,
+    };
+  }
+  return null;
 }
 
-// Caché del token en memoria (dura ~1 h; renovamos 2 min antes de que venza).
-let tokenCache = { token: null, vence: 0 };
+export async function graphConfigurado() {
+  return Boolean(await resolverGraphConfig());
+}
 
-async function obtenerToken() {
-  if (tokenCache.token && Date.now() < tokenCache.vence) return tokenCache.token;
+export async function guardarGraphConfig({ tenantId, clientId, clientSecret, casilla, vence }) {
+  await Promise.all([
+    setConfig(GRAPH_KEYS.tenantId, tenantId), setConfig(GRAPH_KEYS.clientId, clientId),
+    setConfig(GRAPH_KEYS.clientSecret, clientSecret), setConfig(GRAPH_KEYS.casilla, casilla),
+    setConfig(GRAPH_KEYS.vence, vence || null),
+  ]);
+  tokenCache = { firma: null, token: null, vence: 0 };
+}
+
+export async function borrarGraphConfig() {
+  await Promise.all(Object.values(GRAPH_KEYS).map((k) => setConfig(k, null)));
+  tokenCache = { firma: null, token: null, vence: 0 };
+}
+
+// Días para el vencimiento del secreto (null si no está registrado).
+export function diasParaVencer(vence) {
+  if (!vence) return null;
+  const hoy = new Date().toISOString().slice(0, 10);
+  return Math.round((new Date(vence) - new Date(hoy)) / 86400000);
+}
+
+// Caché del token en memoria, atado a la firma de las credenciales: si se
+// cambian desde la app, el token viejo se descarta solo.
+let tokenCache = { firma: null, token: null, vence: 0 };
+
+async function obtenerToken(credenciales) {
+  const cred = credenciales || await resolverGraphConfig();
+  if (!cred) throw new ApiError(503, 'graph_no_configurado', 'La integración con Outlook no está configurada');
+  const firma = `${cred.tenantId}|${cred.clientId}|${cred.clientSecret.slice(-6)}`;
+  if (tokenCache.token && tokenCache.firma === firma && Date.now() < tokenCache.vence) return tokenCache.token;
   const body = new URLSearchParams({
-    client_id: process.env.GRAPH_CLIENT_ID,
-    client_secret: process.env.GRAPH_CLIENT_SECRET,
+    client_id: cred.clientId,
+    client_secret: cred.clientSecret,
     scope: 'https://graph.microsoft.com/.default',
     grant_type: 'client_credentials',
   });
-  const res = await fetch(LOGIN_URL(process.env.GRAPH_TENANT_ID), {
+  const res = await fetch(LOGIN_URL(cred.tenantId), {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
@@ -40,12 +100,12 @@ async function obtenerToken() {
   if (!res.ok || !data?.access_token) {
     throw new ApiError(502, 'graph_auth', `No se pudo autenticar contra Microsoft (${data?.error_description?.split('.')[0] || res.status})`);
   }
-  tokenCache = { token: data.access_token, vence: Date.now() + (Number(data.expires_in || 3600) - 120) * 1000 };
+  tokenCache = { firma, token: data.access_token, vence: Date.now() + (Number(data.expires_in || 3600) - 120) * 1000 };
   return tokenCache.token;
 }
 
-async function graphFetch(path, { method = 'GET', body } = {}) {
-  const token = await obtenerToken();
+export async function graphFetch(path, { method = 'GET', body, credenciales } = {}) {
+  const token = await obtenerToken(credenciales);
   const res = await fetch(`${GRAPH}${path}`, {
     method,
     headers: {
@@ -67,7 +127,9 @@ const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 // Exchange envía las invitaciones automáticamente (el mail llega con el bloque
 // estándar "Unirse / Id. de reunión / Código de acceso" que genera el tenant).
 export async function crearEventoVideollamada({ organizacion, fecha, horaInicio, horaFin, notas, emailLead, contactoNombre, emailsColaboradores = [] }) {
-  const casilla = encodeURIComponent(process.env.GRAPH_CASILLA);
+  const cred = await resolverGraphConfig();
+  if (!cred) throw new ApiError(503, 'graph_no_configurado', 'La integración con Outlook no está configurada');
+  const casilla = encodeURIComponent(cred.casilla);
   const attendees = [
     emailLead ? { emailAddress: { address: emailLead, name: contactoNombre || organizacion }, type: 'required' } : null,
     ...emailsColaboradores.filter(Boolean).map((address) => ({ emailAddress: { address }, type: 'required' })),

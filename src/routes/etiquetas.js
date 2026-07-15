@@ -45,11 +45,23 @@ export const normalizarTag = (s) => String(s || '')
 // clave normalizada. Fuentes: items de la grilla + registro Tag (kanban/objetivos).
 router.get('/uso', async (req, res, next) => {
   try {
-    const [entradas, registro, usoKanban] = await Promise.all([
-      prisma.grillaEntrada.findMany({ where: { NOT: { items: { equals: null } } }, select: { items: true } }),
+    // ?anio=YYYY filtra: grilla por fecha del día; kanban por fecha de alta de
+    // la tarea. Sin anio → total histórico de toda la plataforma.
+    const anio = Number(req.query.anio) || null;
+    const whereGrilla = { NOT: { items: { equals: null } } };
+    if (anio) whereGrilla.fecha = { gte: new Date(`${anio}-01-01`), lte: new Date(`${anio}-12-31`) };
+    const [entradas, registro, puentesKanban] = await Promise.all([
+      prisma.grillaEntrada.findMany({ where: whereGrilla, select: { items: true } }),
       prisma.tag.findMany({ select: { id: true, nombre: true } }),
-      prisma.tareaTag.groupBy({ by: ['tagId'], _count: { tagId: true } }),
+      prisma.tareaTag.findMany({ select: { tagId: true, tarea: { select: { createdAt: true } } } }),
     ]);
+    const usoKanban = [];
+    const porTag = {};
+    for (const p of puentesKanban) {
+      if (anio && p.tarea?.createdAt && new Date(p.tarea.createdAt).getFullYear() !== anio) continue;
+      porTag[p.tagId] = (porTag[p.tagId] || 0) + 1;
+    }
+    for (const [tagId, n] of Object.entries(porTag)) usoKanban.push({ tagId: Number(tagId), _count: { tagId: n } });
 
     const conteo = new Map(); // nombre exacto -> { grilla, kanban, enRegistro }
     const toca = (nombre) => {
@@ -70,8 +82,57 @@ router.get('/uso', async (req, res, next) => {
 
     const lista = [...conteo.values()]
       .map(c => ({ ...c, normal: normalizarTag(c.tag), total: c.grilla + c.kanban }))
+      .filter(c => !anio || c.total > 0 || c.enRegistro)
       .sort((a, b) => a.normal.localeCompare(b.normal) || b.total - a.total);
-    res.json({ etiquetas: lista });
+    res.json({ etiquetas: lista, anio });
+  } catch (e) { next(e); }
+});
+
+// GET /etiquetas/detalle?tag=X[&anio=YYYY] → las tareas detrás del contador:
+// ítems de la grilla (fecha, colaborador, texto, horas declaradas) + cards del
+// kanban, con matching por clave normalizada (agrupa variantes de escritura).
+router.get('/detalle', async (req, res, next) => {
+  try {
+    const clave = normalizarTag(req.query.tag);
+    if (!clave) throw new ApiError(400, 'bad_request', 'Falta el tag');
+    const anio = Number(req.query.anio) || null;
+    const whereGrilla = { NOT: { items: { equals: null } } };
+    if (anio) whereGrilla.fecha = { gte: new Date(`${anio}-01-01`), lte: new Date(`${anio}-12-31`) };
+
+    const [entradas, colaboradores, tags] = await Promise.all([
+      prisma.grillaEntrada.findMany({ where: whereGrilla, select: { colaboradorId: true, fecha: true, items: true }, orderBy: { fecha: 'desc' } }),
+      prisma.colaborador.findMany({ select: { id: true, nombre: true } }),
+      prisma.tag.findMany({ select: { id: true, nombre: true } }),
+    ]);
+    const nombrePor = Object.fromEntries(colaboradores.map(c => [c.id, c.nombre]));
+
+    const itemsGrilla = [];
+    for (const e of entradas) {
+      for (const it of (Array.isArray(e.items) ? e.items : [])) {
+        const tgs = Array.isArray(it?.tags) ? it.tags : [];
+        if (!tgs.some(t => normalizarTag(t) === clave)) continue;
+        itemsGrilla.push({
+          fecha: e.fecha.toISOString().slice(0, 10),
+          colaborador: nombrePor[e.colaboradorId] || `#${e.colaboradorId}`,
+          texto: String(it.text || ''),
+          horas: Number(it.horas) > 0 ? Number(it.horas) : null,
+        });
+      }
+    }
+
+    const idsTag = tags.filter(t => normalizarTag(t.nombre) === clave).map(t => t.id);
+    let cards = [];
+    if (idsTag.length) {
+      const whereTarea = { tags: { some: { tagId: { in: idsTag } } } };
+      if (anio) whereTarea.createdAt = { gte: new Date(`${anio}-01-01`), lte: new Date(`${anio}-12-31T23:59:59`) };
+      cards = (await prisma.tarea.findMany({
+        where: whereTarea,
+        select: { titulo: true, kanbanCol: true, proyecto: { select: { nombre: true } } },
+        orderBy: { createdAt: 'desc' }, take: 100,
+      })).map(t => ({ titulo: t.titulo, columna: t.kanbanCol, proyecto: t.proyecto?.nombre || null }));
+    }
+
+    res.json({ tag: req.query.tag, anio, itemsGrilla, cards });
   } catch (e) { next(e); }
 });
 
