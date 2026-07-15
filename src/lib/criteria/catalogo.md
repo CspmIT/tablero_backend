@@ -1,4 +1,4 @@
-# Catálogo de plantas modelo +Agua — v1.3
+# Catálogo de plantas modelo +Agua — v1.4
 
 **Fecha:** 14/07/2026 (v1.1) · **Fuente:** conocimiento de Leonardo; v1.0 08/07 (estructuración inicial); v1.1 14/07 con 3 reglas surgidas del banco de pruebas de CriterIA (corridas Cuesta Blanca y Castelli); v1.2 14/07 con la regla del dosificador de reemplazo (corrida Tacural); v1.3 14/07 con la regla de intervenciones sobre terceros (corrida 19 de Septiembre + nota modelo ASSA)
 **Propósito:** dato consumible para el caso C del Asistente IA (generación del planteo de proyecto desde el relevamiento) y documentación de la estandarización del diseño (TFI, capítulo de intervención).
@@ -130,6 +130,22 @@ el modelo asume integración del existente, u opcional a pedido — §3).
 - **Caudalímetro existente del cliente:** salida 4-20 mA → AI-3 de Multivac 1;
   salida modbus → bus genérico; salida de pulsos → el mismo conversor propio
   pulsos→modbus.
+
+- **Sensor de presión en lazo compartido (v1.4):** si un transductor de presión
+  existente está siendo usado por un automatismo del cliente (lazo de control),
+  la lectura debe integrarse SIN interferir el lazo: preaviso de configuración
+  de la Multivac definido en el planteo (no improvisar en sitio durante la
+  implementación). Registrar el rango del sensor si se conoce; si el lazo
+  compartido está confirmado, incluir advertencia de coordinación con el
+  automatismo en la asignación de recursos.
+
+- **Ingreso/salida por múltiples troncales (v1.4):** si el llenado del tanque o
+  la entrega a red se hace por VARIAS cañerías no unificadas, medir en una sola
+  NO da el caudal total. El planteo debe elegir explícitamente entre: (a) punto
+  único de unificación si existe o es viable, (b) un caudalímetro por troncal
+  (sumar), o (c) inferencia por consumo eléctrico de las bombas (regla v1.1,
+  especialmente conveniente con 3+ puntos). Nunca presupuestar un caudalímetro
+  único sobre una troncal parcial sin advertirlo.
 
 - **Intervenciones sobre infraestructura de terceros (v1.3):** cuando el
   monitoreo requiere instalar equipamiento o leer datos en infraestructura que
