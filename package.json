@@ -19,7 +19,8 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "xlsx-populate": "^1.21.0"
   },
   "devDependencies": {
     "prisma": "^5.22.0"

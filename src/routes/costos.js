@@ -1,12 +1,30 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { generarExcelCostos } from '../lib/exportCostosExcel.js';
 const router = Router();
 
 router.get('/', async (req, res, next) => {
   try {
     const data = await prisma.costoMensual.findMany({ orderBy: { mes: 'desc' } });
     res.json({ data });
+  } catch (e) { next(e); }
+});
+
+// GET /costos/exportar-excel?anio=2026 — el anualizado en el formato exacto
+// del Excel de administración (plantilla real): Nadia descarga y reemplaza.
+router.get('/exportar-excel', async (req, res, next) => {
+  try {
+    const anio = Number(req.query.anio) || new Date().getFullYear();
+    const [costos, colaboradores] = await Promise.all([
+      prisma.costoMensual.findMany({ where: { mes: { startsWith: `${anio}-` } } }),
+      prisma.colaborador.findMany({ select: { id: true, nombre: true, funcionCosto: true } }),
+    ]);
+    const meses = Object.fromEntries(costos.map((c) => [c.mes, c]));
+    const buffer = await generarExcelCostos({ anio, meses, colaboradores });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="Costos_Operacion_Cooptech_${anio}.xlsx"`);
+    res.send(Buffer.from(buffer));
   } catch (e) { next(e); }
 });
 
