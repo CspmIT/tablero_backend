@@ -34,17 +34,25 @@ router.get('/', async (req, res, next) => {
   try { res.json(await estadoActual()); } catch (e) { next(e); }
 });
 
-// PUT /integraciones/graph { tenantId, clientId, clientSecret, casilla, vence? }
-// Valida ANTES de guardar: (1) obtiene un token real con esas credenciales,
-// (2) verifica el acceso a la casilla (detecta casillas mal escritas o
-// bloqueadas por ApplicationAccessPolicy). Si algo falla, NO se guarda.
+// PUT /integraciones/graph { tenantId?, clientId?, clientSecret?, casilla?, vence? }
+// ACTUALIZACIÓN PARCIAL (mejora 16/07): si ya hay credenciales cargadas, los
+// campos vacíos conservan el valor guardado — cambiar solo la casilla (caso
+// típico: pasar de la casilla de prueba a la comercial) no exige recargar los
+// 5 datos. Valida ANTES de guardar: (1) token real, (2) acceso al calendario
+// de la casilla. Si algo falla, NO se guarda.
 router.put('/', async (req, res, next) => {
   try {
-    const tenantId = String(req.body?.tenantId || '').trim();
-    const clientId = String(req.body?.clientId || '').trim();
-    const clientSecret = String(req.body?.clientSecret || '').trim();
-    const casilla = String(req.body?.casilla || '').trim().toLowerCase();
-    const vence = req.body?.vence ? String(req.body.vence).slice(0, 10) : null;
+    const previa = await resolverGraphConfig(); // null si no hay nada cargado
+    const tenantId = String(req.body?.tenantId || '').trim() || previa?.tenantId || '';
+    const clientId = String(req.body?.clientId || '').trim() || previa?.clientId || '';
+    const clientSecret = String(req.body?.clientSecret || '').trim() || previa?.clientSecret || '';
+    const casilla = (String(req.body?.casilla || '').trim() || previa?.casilla || '').toLowerCase();
+    // Vencimiento: si viene, se usa; si no viene y el secreto no cambió, se
+    // conserva el guardado (un secreto nuevo sin fecha deja el campo vacío).
+    const secretoCambio = !!String(req.body?.clientSecret || '').trim();
+    const vence = req.body?.vence
+      ? String(req.body.vence).slice(0, 10)
+      : (!secretoCambio ? (previa?.vence || null) : null);
 
     const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRe.test(tenantId)) throw new ApiError(400, 'bad_request', 'El Tenant ID no tiene formato de identificador (GUID)');
@@ -60,7 +68,7 @@ router.put('/', async (req, res, next) => {
     } catch (e) {
       const detalle = e?.message || 'error desconocido';
       throw new ApiError(400, 'graph_validacion',
-        `Las credenciales no pasaron la prueba (${detalle}). No se guardó nada: revisá los 4 datos con el administrador.`);
+        `Las credenciales no pasaron la prueba (${detalle}). No se guardó nada: revisá los datos con el administrador.`);
     }
 
     await guardarGraphConfig({ tenantId, clientId, clientSecret, casilla, vence });
