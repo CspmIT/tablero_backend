@@ -10,6 +10,15 @@ import { ApiError } from '../middleware/errorHandler.js';
 
 const router = Router();
 
+// La generación con imágenes tarda 1-3 minutos: extender los timeouts del
+// request/response para que Node no corte antes que Claude responda.
+// (El proxy inverso TAMBIÉN debe permitirlo: proxy_read_timeout >= 300s.)
+router.use((req, res, next) => {
+  req.setTimeout(300000);
+  res.setTimeout(300000);
+  next();
+});
+
 const MAX_IMAGENES = 20;
 const MAX_DATAURI = 2_500_000; // ~1.8 MB reales por imagen, de sobra para 1100 px
 
@@ -76,6 +85,7 @@ router.post('/preguntas', async (req, res, next) => {
       system: SYSTEM_PREGUNTAS,
       messages: [{ role: 'user', content: contenido }],
       maxTokens: 2000,
+      stream: true, // generaciones largas: sin stream, el borde corta ~100 s
     });
     const out = parsearJson(data, 'las preguntas');
     res.json({
@@ -95,6 +105,7 @@ router.post('/generar', async (req, res, next) => {
       system: SYSTEM_GENERAR,
       messages: [{ role: 'user', content: contenido }],
       maxTokens: 16000,
+      stream: true, // imprescindible: la generación tarda 1-3 min
     });
     const planteo = parsearJson(data, 'un planteo');
     res.json({

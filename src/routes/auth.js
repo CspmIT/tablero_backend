@@ -60,7 +60,8 @@ publicAuthRouter.post('/loginCooptech', async (req, res, next) => {
 const router = Router();
 
 // Usuario actual, mapeado desde el token de identidad al colaborador del tablero.
-router.get('/me', (req, res) => {
+router.get('/me', async (req, res) => {
+  const { leerOverrides, solapasDe } = await import('./permisos.js');
   const c = req.colaborador;
   res.json({
     colaboradorId: c ? c.id : null,
@@ -68,6 +69,7 @@ router.get('/me', (req, res) => {
     nombre: c ? c.nombre : (req.identity?.name ?? null),
     email: c ? c.email : (req.identity?.email ?? null),
     tipo: c ? c.tipo : null,
+    solapas: c ? solapasDe(await leerOverrides(), c.id) : { extra: [], ocultas: [] },
     imgProfile: req.identity?.img_profile ?? null,
     aprovisionado: !!c,
   });

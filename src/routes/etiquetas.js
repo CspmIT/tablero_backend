@@ -4,7 +4,7 @@
 // asistente). Este router permite ver el uso real y UNIFICAR variantes.
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { requireTipo } from '../middleware/auth.js';
+import { permitirTipoOSolapa } from './permisos.js';
 import { ApiError } from '../middleware/errorHandler.js';
 
 const router = Router();
@@ -34,7 +34,7 @@ router.get('/sugerencias', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.use(requireTipo('manager'));
+router.use(permitirTipoOSolapa('analisis', 'manager', 'gerencial', 'externo'));
 
 // Normalización: minúsculas, sin acentos, solo alfanumérico ("Mas Agua" → "masagua").
 export const normalizarTag = (s) => String(s || '')

@@ -25,7 +25,12 @@ export const mascarar = (k) => `${String(k).slice(0, 12)}…${String(k).slice(-4
 
 // Una llamada al endpoint /v1/messages. `apiKey` opcional (para probar una clave
 // antes de guardarla); si no se pasa, se resuelve la configurada.
-export async function llamarClaude({ system, messages, tools, maxTokens = 1500, apiKey }) {
+// `stream: true` → pide la respuesta por SSE y la ACUMULA acá mismo, devolviendo
+// la misma forma que la llamada normal. Imprescindible para generaciones largas
+// (CriterIA, 1-3 min): sin streaming, ninguna capa intermedia ve bytes hasta el
+// final y la conexión muere ~100 s (el clásico 524 del borde). Con streaming,
+// la respuesta gotea desde el primer segundo y nadie corta.
+export async function llamarClaude({ system, messages, tools, maxTokens = 1500, apiKey, stream = false }) {
   const clave = apiKey || await resolverApiKey();
   if (!clave) {
     throw new ApiError(503, 'asistente_no_configurado',
@@ -38,6 +43,7 @@ export async function llamarClaude({ system, messages, tools, maxTokens = 1500, 
     messages,
   };
   if (tools?.length) body.tools = tools;
+  if (stream) body.stream = true;
 
   const res = await fetch(API_URL, {
     method: 'POST',
@@ -49,13 +55,45 @@ export async function llamarClaude({ system, messages, tools, maxTokens = 1500, 
     body: JSON.stringify(body),
   });
 
-  let data = null;
-  try { data = await res.json(); } catch { /* sin cuerpo */ }
   if (!res.ok) {
-    const msg = data?.error?.message || res.statusText;
+    let data = null;
+    try { data = await res.json(); } catch { /* cuerpo no-JSON (proxy/borde) */ }
+    const msg = data?.error?.message || `HTTP ${res.status} ${res.statusText || ''}`.trim();
     if (res.status === 401) throw new ApiError(401, 'clave_invalida', 'La clave de API fue rechazada por Anthropic');
     throw new ApiError(res.status === 429 || res.status === 529 ? 503 : 502,
       'asistente_error', `Error del servicio de IA: ${msg}`);
   }
-  return data;
+
+  if (!stream) {
+    let data = null;
+    try { data = await res.json(); } catch { /* sin cuerpo */ }
+    return data;
+  }
+
+  // Acumulación del SSE: misma forma de salida que la llamada normal.
+  const decoder = new TextDecoder();
+  let buffer = '', texto = '', model = null;
+  const usage = {};
+  for await (const chunk of res.body) {
+    buffer += decoder.decode(chunk, { stream: true });
+    let corte;
+    while ((corte = buffer.indexOf('\n')) >= 0) {
+      const linea = buffer.slice(0, corte).trim();
+      buffer = buffer.slice(corte + 1);
+      if (!linea.startsWith('data:')) continue;
+      let ev = null;
+      try { ev = JSON.parse(linea.slice(5).trim()); } catch { continue; }
+      if (ev.type === 'message_start') {
+        model = ev.message?.model || null;
+        if (ev.message?.usage?.input_tokens != null) usage.input_tokens = ev.message.usage.input_tokens;
+      } else if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
+        texto += ev.delta.text;
+      } else if (ev.type === 'message_delta') {
+        if (ev.usage?.output_tokens != null) usage.output_tokens = ev.usage.output_tokens;
+      } else if (ev.type === 'error') {
+        throw new ApiError(502, 'asistente_error', `Error del servicio de IA: ${ev.error?.message || 'error en el stream'}`);
+      }
+    }
+  }
+  return { content: [{ type: 'text', text: texto }], usage, model };
 }
