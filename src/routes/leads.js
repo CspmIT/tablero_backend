@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { graphConfigurado, crearEventoVideollamada, resolverGraphConfig, diasParaVencer } from '../lib/graph.js';
+import { horasEntre } from './reuniones.js';
 
 const router = Router();
 
@@ -236,7 +237,7 @@ router.post('/:id/videollamada', async (req, res, next) => {
         });
         const items = Array.isArray(existente?.items) ? [...existente.items] : [];
         if (!items.some(it => it && (it.reunionId === reunion.id || it.text === textoItem))) {
-          items.push({ text: textoItem, wip: false, tags: tagsItem, reunionId: reunion.id, ...(linkTeams ? { link: linkTeams } : {}) });
+          items.push({ text: textoItem, wip: false, tags: tagsItem, reunionId: reunion.id, horas: horasEntre(horaInicio, horaFin), ...(linkTeams ? { link: linkTeams } : {}) });
         }
         await tx.grillaEntrada.upsert({
           where: { colaboradorId_fecha: { colaboradorId, fecha: fechaD } },
