@@ -215,14 +215,28 @@ router.post('/:id/videollamada', async (req, res, next) => {
           notas: notasAct,
         },
       });
+      // Ciclo de vida (ola reuniones 16/07): la Reunion guarda el eventId de
+      // Outlook y los involucrados → reprogramar/cancelar desde la app.
+      const reunion = await tx.reunion.create({
+        data: {
+          tipo: 'cliente', titulo: lead.organizacion,
+          fecha: fechaD, horaInicio, horaFin, modalidad: 'virtual',
+          organizadorId: req.colaborador?.id ?? null,
+          leadId: id, crmActividadId: actividad.id,
+          colaboradoresIds: ids,
+          tags: tagsItem.length ? tagsItem : null,
+          graphEventId: graphInfo?.id || null,
+          casilla: graphInfo ? (await resolverGraphConfig())?.casilla || null : null,
+          joinUrl: linkTeams,
+        },
+      });
       for (const colaboradorId of ids) {
         const existente = await tx.grillaEntrada.findUnique({
           where: { colaboradorId_fecha: { colaboradorId, fecha: fechaD } },
         });
         const items = Array.isArray(existente?.items) ? [...existente.items] : [];
-        // Idempotencia básica: no duplicar el mismo ítem si se agenda dos veces.
-        if (!items.some(it => it && it.text === textoItem)) {
-          items.push({ text: textoItem, wip: false, tags: tagsItem, ...(linkTeams ? { link: linkTeams } : {}) });
+        if (!items.some(it => it && (it.reunionId === reunion.id || it.text === textoItem))) {
+          items.push({ text: textoItem, wip: false, tags: tagsItem, reunionId: reunion.id, ...(linkTeams ? { link: linkTeams } : {}) });
         }
         await tx.grillaEntrada.upsert({
           where: { colaboradorId_fecha: { colaboradorId, fecha: fechaD } },
@@ -230,7 +244,7 @@ router.post('/:id/videollamada', async (req, res, next) => {
           create: { colaboradorId, fecha: fechaD, items }, // estado: default (present)
         });
       }
-      return actividad;
+      return { ...actividad, reunionId: reunion.id };
     });
 
     res.status(201).json({
