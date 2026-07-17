@@ -419,6 +419,7 @@ model CrmActividad {
   tipo          TipoActividadCrm
   fecha         DateTime         @db.Date
   notas         String?          @db.Text
+  cancelada     Boolean          @default(false) // reuniones canceladas no cuentan en métricas
   createdAt     DateTime         @default(now())
 
   @@index([leadId])
@@ -605,4 +606,41 @@ model Deseo {
   updatedAt      DateTime    @updatedAt
 
   @@index([solicitanteId, estado])
+}
+
+// Ola de reuniones (16/07): ciclo de vida completo (crear → reprogramar →
+// cancelar) para reuniones con clientes (CRM) e internas (Mi mes), con el
+// evento de Outlook sincronizado (Graph) y los ítems de grilla marcados.
+enum ReunionModalidad {
+  virtual
+  presencial
+}
+
+enum ReunionEstado {
+  activa
+  cancelada
+}
+
+model Reunion {
+  id               Int               @id @default(autoincrement())
+  tipo             String            // 'cliente' | 'interna'
+  titulo           String
+  fecha            DateTime          @db.Date
+  horaInicio       String
+  horaFin          String
+  modalidad        ReunionModalidad  @default(virtual)
+  lugar            String?           // sala (presencial)
+  organizadorId    Int?
+  leadId           Int?
+  crmActividadId   Int?
+  colaboradoresIds Json              // [int] involucrados (incluye organizador)
+  tags             Json?             // etiquetas del ítem de grilla (prueba estrella)
+  graphEventId     String?           // permite PATCH/DELETE del evento Outlook
+  casilla          String?           // buzón donde vive el evento
+  joinUrl          String?           @db.Text
+  estado           ReunionEstado     @default(activa)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([fecha, estado])
 }

@@ -20,6 +20,7 @@ import integracionesRouter from './integraciones.js';
 import deseosRouter from './deseos.js';
 import criteriaRouter from './criteria.js';
 import permisosRouter from './permisos.js';
+import reunionesRouter from './reuniones.js';
 
 const router = Router();
 
@@ -201,6 +202,8 @@ router.use('/deseos', deseosRouter);
 router.use('/criteria', criteriaRouter);
 // Permisos de UI por usuario (panel de administración de vistas)
 router.use('/permisos', permisosRouter);
+// Reuniones: ciclo de vida (internas de Mi mes + gestión de las de clientes)
+router.use('/reuniones', reunionesRouter);
 // Costos: solo rol gerencial/manager puede escribir; lectura para todos los habilitados
 router.use('/costos', costosRouter);
 

@@ -126,27 +126,63 @@ const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 // Crea el evento en el calendario de la casilla comercial con reunión de Teams.
 // Exchange envía las invitaciones automáticamente (el mail llega con el bloque
 // estándar "Unirse / Id. de reunión / Código de acceso" que genera el tenant).
-export async function crearEventoVideollamada({ organizacion, fecha, horaInicio, horaFin, notas, emailLead, contactoNombre, emailsColaboradores = [] }) {
+// Evento genérico: virtual (Teams) o presencial (con lugar), en la casilla
+// indicada (comercial para clientes; el buzón del organizador para internas).
+export async function crearEvento({ casilla: casillaParam, subject, cuerpo, fecha, horaInicio, horaFin, attendees = [], online = true, lugar = null }) {
   const cred = await resolverGraphConfig();
   if (!cred) throw new ApiError(503, 'graph_no_configurado', 'La integración con Outlook no está configurada');
-  const casilla = encodeURIComponent(cred.casilla);
-  const attendees = [
-    emailLead ? { emailAddress: { address: emailLead, name: contactoNombre || organizacion }, type: 'required' } : null,
-    ...emailsColaboradores.filter(Boolean).map((address) => ({ emailAddress: { address }, type: 'required' })),
-  ].filter(Boolean);
-
+  const casilla = encodeURIComponent(casillaParam || cred.casilla);
   const evento = await graphFetch(`/users/${casilla}/events`, {
     method: 'POST',
     body: {
-      subject: `Videollamada Cooptech · ${organizacion}`,
-      body: { contentType: 'text', content: notas || `Videollamada con ${organizacion}.` },
+      subject,
+      body: { contentType: 'text', content: cuerpo || subject },
       start: { dateTime: `${fecha}T${horaInicio}:00`, timeZone: TZ },
       end: { dateTime: `${fecha}T${horaFin}:00`, timeZone: TZ },
       attendees,
-      isOnlineMeeting: true,
-      onlineMeetingProvider: 'teamsForBusiness',
+      ...(lugar ? { location: { displayName: lugar } } : {}),
+      ...(online ? { isOnlineMeeting: true, onlineMeetingProvider: 'teamsForBusiness' } : {}),
     },
   });
+  return { evento, casillaUsada: casillaParam || cred.casilla };
+}
+
+// Reprogramación: PATCH del evento — Outlook envía solos los mails de
+// "reunión actualizada" a todos los invitados y corrige sus calendarios.
+export async function actualizarEvento({ casilla, eventId, subject, fecha, horaInicio, horaFin, attendees, lugar, online }) {
+  const body = {};
+  if (subject) body.subject = subject;
+  if (fecha && horaInicio) body.start = { dateTime: `${fecha}T${horaInicio}:00`, timeZone: TZ };
+  if (fecha && horaFin) body.end = { dateTime: `${fecha}T${horaFin}:00`, timeZone: TZ };
+  if (Array.isArray(attendees)) body.attendees = attendees;
+  if (lugar !== undefined) body.location = { displayName: lugar || '' };
+  await graphFetch(`/users/${encodeURIComponent(casilla)}/events/${encodeURIComponent(eventId)}`, {
+    method: 'PATCH', body,
+  });
+}
+
+// Cancelación: DELETE del evento — Outlook envía las cancelaciones a todos.
+export async function cancelarEvento({ casilla, eventId }) {
+  await graphFetch(`/users/${encodeURIComponent(casilla)}/events/${encodeURIComponent(eventId)}`, {
+    method: 'DELETE', esperarVacio: true,
+  });
+}
+
+export function armarAttendees({ emailLead, contactoNombre, organizacion, emails = [] }) {
+  return [
+    emailLead ? { emailAddress: { address: emailLead, name: contactoNombre || organizacion || emailLead }, type: 'required' } : null,
+    ...emails.filter(Boolean).map((address) => ({ emailAddress: { address }, type: 'required' })),
+  ].filter(Boolean);
+}
+
+export async function crearEventoVideollamada({ organizacion, fecha, horaInicio, horaFin, notas, emailLead, contactoNombre, emailsColaboradores = [] }) {
+  const attendees = armarAttendees({ emailLead, contactoNombre, organizacion, emails: emailsColaboradores });
+  const { evento, casillaUsada } = await crearEvento({
+    subject: `Videollamada Cooptech · ${organizacion}`,
+    cuerpo: notas || `Videollamada con ${organizacion}.`,
+    fecha, horaInicio, horaFin, attendees, online: true,
+  });
+  const casilla = encodeURIComponent(casillaUsada);
 
   // El joinUrl a veces tarda unos instantes en materializarse: un reintento corto.
   let joinUrl = evento?.onlineMeeting?.joinUrl || null;
