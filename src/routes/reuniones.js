@@ -11,6 +11,13 @@ import { graphConfigurado, crearEvento, actualizarEvento, cancelarEvento, armarA
 
 const router = Router();
 
+export function horasEntre(hi, hf) {
+  const [h1, m1] = String(hi).split(':').map(Number);
+  const [h2, m2] = String(hf).split(':').map(Number);
+  const d = (h2 * 60 + m2 - h1 * 60 - m1) / 60;
+  return d > 0 ? Math.round(d * 100) / 100 : null;
+}
+
 export function textoItemReunion(r) {
   const rango = `${r.horaInicio}–${r.horaFin}`;
   const lugar = r.modalidad === 'presencial' && r.lugar ? ` · ${r.lugar}` : '';
@@ -94,6 +101,7 @@ router.post('/', async (req, res, next) => {
     const ids = [...new Set([...(Array.isArray(req.body?.colaboradoresIds) ? req.body.colaboradoresIds : []).map(Number), req.colaborador.id].filter(Boolean))];
     const tags = (Array.isArray(req.body?.tags) ? req.body.tags : [])
       .map(t => String(t).trim()).filter(Boolean).slice(0, 6);
+    if (!tags.length) throw new ApiError(400, 'bad_request', 'Agregá al menos una etiqueta (proyecto/tema): el ítem de grilla nace etiquetado');
 
     // Outlook: evento en el buzón del ORGANIZADOR; invitados = los demás.
     let graphInfo = null, graphError = null;
@@ -130,6 +138,7 @@ router.post('/', async (req, res, next) => {
       });
       await agregarItemsGrilla(tx, ids, fechaD, {
         text: textoItemReunion(r), wip: false, reunionId: r.id,
+        horas: horasEntre(horaInicio, horaFin), // la duración completa las horas de la tarea
         ...(tags.length ? { tags } : {}),
         ...(graphInfo?.joinUrl ? { link: graphInfo.joinUrl } : {}),
       });
@@ -160,6 +169,7 @@ router.patch('/:id', async (req, res, next) => {
     const tags = req.body?.tags !== undefined
       ? (Array.isArray(req.body.tags) ? req.body.tags.map(t => String(t).trim()).filter(Boolean).slice(0, 6) : [])
       : (Array.isArray(r.tags) ? r.tags : []);
+    if (r.tipo === 'interna' && !tags.length) throw new ApiError(400, 'bad_request', 'La reunión necesita al menos una etiqueta');
 
     // Outlook primero: si el PATCH falla, no tocamos nada interno.
     let graphError = null;
@@ -192,6 +202,7 @@ router.patch('/:id', async (req, res, next) => {
       });
       await agregarItemsGrilla(tx, idsNuevos, fechaNueva, {
         text: textoItemReunion(nuevo), wip: false, reunionId: nuevo.id,
+        horas: horasEntre(horaInicio, horaFin),
         ...(tags.length ? { tags } : {}),
         ...(nuevo.joinUrl ? { link: nuevo.joinUrl } : {}),
       });
