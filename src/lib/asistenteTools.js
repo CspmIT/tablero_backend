@@ -40,7 +40,7 @@ const TOOLS = [
     roles: null,
     def: {
       name: 'horas_por_etiqueta',
-      description: `Estima horas de trabajo por etiqueta (tag) a partir de la grilla diaria, en un rango de fechas. Criterio: cada día trabajado = ${HORAS_DIA} hs repartidas en partes iguales entre los ítems del día; las horas de un ítem se asignan a cada una de sus etiquetas. Sirve para preguntas como "¿cuántas horas se destinaron a Reconecta este año?" (las etiquetas suelen ser productos o proyectos). Devuelve horas por etiqueta y total de días trabajados. SIEMPRE aclarar en la respuesta que es una estimación con este criterio.`,
+      description: `Horas de trabajo por etiqueta (tag) a partir de la grilla diaria, en un rango de fechas. Criterio HIBRIDO: usa las HORAS DECLARADAS por item cuando el colaborador las cargo (dato real de la grilla); solo para los items SIN horas cargadas estima repartiendo el resto del dia (${HORAS_DIA} hs menos las declaradas) en partes iguales. Las horas de un item se asignan a cada una de sus etiquetas. Devuelve el desglose horasDeclaradas vs horasEstimadas y pctDeclarado: si el % declarado es alto, presenta los numeros como datos reales de la grilla aclarando solo la porcion estimada; si es bajo (datos viejos sin carga de horas), aclara que domina la estimacion. Sirve para preguntas como cuantas horas se destinaron a Reconecta este anio.`,
       input_schema: {
         type: 'object',
         properties: {
@@ -62,7 +62,7 @@ const TOOLS = [
       // que variantes como "+Agua"/"masagua" no fragmenten las horas; se muestra
       // la forma escrita más frecuente de cada grupo.
       const grupos = {}; const horasSinTag = { horas: 0 };
-      let diasTrabajados = 0;
+      let diasTrabajados = 0, horasDeclaradas = 0, horasEstimadas = 0;
       for (const e of entradas) {
         if (!DIAS_TRABAJADOS.includes(e.estado)) continue;
         const items = (Array.isArray(e.items) ? e.items : []).filter(i => i && String(i.text || '').trim());
@@ -75,7 +75,9 @@ const TOOLS = [
         const sinEspecificar = items.filter((it) => !(Number(it.horas) > 0)).length;
         const horasAuto = sinEspecificar ? Math.max(0, HORAS_DIA - sumExpl) / sinEspecificar : 0;
         for (const it of items) {
-          const horasItem = Number(it.horas) > 0 ? Number(it.horas) : horasAuto;
+          const esDeclarada = Number(it.horas) > 0;
+          const horasItem = esDeclarada ? Number(it.horas) : horasAuto;
+          if (esDeclarada) horasDeclaradas += horasItem; else horasEstimadas += horasItem;
           const tags = Array.isArray(it.tags) ? it.tags : [];
           if (!tags.length) { horasSinTag.horas += horasItem; continue; }
           for (const t of tags) {
@@ -93,12 +95,72 @@ const TOOLS = [
         horasPorTag[formas[0]] = Math.round(g.horas * 10) / 10;
         if (formas.length > 1) variantesDetectadas[formas[0]] = formas.slice(1);
       }
+      const totalHs = horasDeclaradas + horasEstimadas;
       return {
         criterio: `horas declaradas por ítem cuando existen; el resto del día (base ${HORAS_DIA} hs) repartido entre los ítems sin especificar; variantes de escritura agrupadas`,
         diasTrabajados,
         horasPorEtiqueta: horasPorTag,
         variantesAgrupadas: Object.keys(variantesDetectadas).length ? variantesDetectadas : undefined,
         horasSinEtiqueta: Math.round(horasSinTag.horas * 10) / 10,
+        // Calidad del dato: cuánto es carga real vs estimación.
+        horasDeclaradas: Math.round(horasDeclaradas * 10) / 10,
+        horasEstimadas: Math.round(horasEstimadas * 10) / 10,
+        pctDeclarado: totalHs > 0 ? Math.round((horasDeclaradas / totalHs) * 100) : 0,
+      };
+    },
+  },
+  {
+    roles: null,
+    def: {
+      name: 'horas_por_combinacion',
+      description: 'Suma horas de los items de la grilla que tienen TODAS las etiquetas indicadas a la vez (interseccion estricta / AND logico), en un rango de fechas y opcionalmente para un colaborador. Usa SOLO las horas declaradas por item (dato real cargado en la grilla) e informa aparte cuantos items de la combinacion no tienen horas cargadas. Ideal para cruces como horas de Oficina Virtual en Tacural, o horas de Juan en Reconecta en 2025 (los anios se expresan con desde/hasta). Devuelve total, desglose por colaborador y por anio.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          tags: { type: 'array', items: { type: 'string' }, description: 'Etiquetas que el item debe tener TODAS (minimo 1)' },
+          desde: { type: 'string', description: 'Fecha inicial YYYY-MM-DD' },
+          hasta: { type: 'string', description: 'Fecha final YYYY-MM-DD' },
+          colaboradorId: { type: 'number', description: 'Opcional: limitar a un colaborador' },
+        },
+        required: ['tags', 'desde', 'hasta'],
+        additionalProperties: false,
+      },
+    },
+    run: async (input) => {
+      const claves = (input.tags || []).map(normalizarTag).filter(Boolean);
+      if (!claves.length) return { error: 'Indicá al menos una etiqueta' };
+      const where = { fecha: { gte: toDate(input.desde), lte: toDate(input.hasta) } };
+      if (input.colaboradorId) where.colaboradorId = Number(input.colaboradorId);
+      const [entradas, colaboradores] = await Promise.all([
+        prisma.grillaEntrada.findMany({ where, select: { estado: true, items: true, colaboradorId: true, fecha: true } }),
+        prisma.colaborador.findMany({ select: { id: true, nombre: true } }),
+      ]);
+      const nombreDe = Object.fromEntries(colaboradores.map(c => [c.id, c.nombre]));
+      let totalHoras = 0, nItems = 0, sinHoras = 0;
+      const porColab = {}, porAnio = {};
+      for (const e of entradas) {
+        if (!DIAS_TRABAJADOS.includes(e.estado)) continue;
+        for (const it of (Array.isArray(e.items) ? e.items : [])) {
+          const propias = new Set((Array.isArray(it?.tags) ? it.tags : []).map(normalizarTag));
+          if (!claves.every(k => propias.has(k))) continue;
+          nItems++;
+          const h = Number(it?.horas) > 0 ? Number(it.horas) : 0;
+          if (!h) { sinHoras++; continue; }
+          totalHoras += h;
+          const a = e.fecha.getUTCFullYear();
+          porColab[e.colaboradorId] = (porColab[e.colaboradorId] || 0) + h;
+          porAnio[a] = (porAnio[a] || 0) + h;
+        }
+      }
+      const r1 = (x) => Math.round(x * 10) / 10;
+      return {
+        etiquetasBuscadas: input.tags,
+        totalHorasDeclaradas: r1(totalHoras),
+        items: nItems,
+        itemsSinHorasCargadas: sinHoras,
+        personas: Object.keys(porColab).length,
+        porColaborador: Object.entries(porColab).map(([id, h]) => ({ nombre: nombreDe[id] || ('#' + id), horas: r1(h) })).sort((a, b) => b.horas - a.horas),
+        porAnio: Object.entries(porAnio).map(([a, h]) => ({ anio: Number(a), horas: r1(h) })).sort((a, b) => a.anio - b.anio),
       };
     },
   },

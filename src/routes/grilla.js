@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { ApiError } from '../middleware/errorHandler.js';
 const router = Router();
 
 const toDate = (v) => new Date(typeof v === 'string' && v.length === 10 ? v + 'T00:00:00Z' : v);
@@ -107,6 +108,91 @@ router.put('/wip', async (req, res, next) => {
       create: { colaboradorId, anio, semanaIso, texto },
     });
     res.json(row);
+  } catch (e) { next(e); }
+});
+
+// --- Resumen semanal de costos, hermanado con la grilla (26/07) -------------
+// El "resumen de la semana" que administración carga en Costos (campo summary
+// de cada semana) se ve y se edita también desde el casillero del WIP de la
+// grilla. Un solo dato, dos superficies. Las semanas de costos arrancan en el
+// primer lunes >= día 1 del mes (idéntico ancla que la grilla): el mapeo es
+// directo por la fecha del lunes. Vive en este router (no en /costos) porque
+// los colaboradores no tienen la solapa Costos y este dato sí es de todos.
+function lunesDelMes(mesKey) {
+  const [y, m] = mesKey.split('-').map(Number);
+  const lunes = [];
+  const d = new Date(Date.UTC(y, m - 1, 1));
+  const dow = d.getUTCDay() || 7;
+  if (dow !== 1) d.setUTCDate(d.getUTCDate() + (8 - dow));
+  while (d.getUTCMonth() === m - 1) {
+    lunes.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 7);
+  }
+  return lunes;
+}
+
+function sumaUnidades(unidades) {
+  return Object.values(unidades || {}).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+}
+
+// GET /grilla/resumen-semana?lunes=YYYY-MM-DD →
+//   { resumenes: {colabId: texto}, cooptechPct: {colabId: 0..1|null} }
+router.get('/resumen-semana', async (req, res, next) => {
+  try {
+    const lunes = String(req.query.lunes || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(lunes)) throw new ApiError(400, 'bad_request', 'Falta el lunes (YYYY-MM-DD)');
+    const mes = lunes.slice(0, 7);
+    const idx = lunesDelMes(mes).indexOf(lunes);
+    const resumenes = {}, cooptechPct = {};
+    if (idx >= 0) {
+      const cm = await prisma.costoMensual.findUnique({ where: { mes } });
+      const asig = cm?.asignaciones || {};
+      for (const [cid, fila] of Object.entries(asig)) {
+        const w = Array.isArray(fila?.weeks) ? fila.weeks[idx] : null;
+        if (w?.summary) resumenes[cid] = w.summary;
+        if (w && w.unidades && Object.keys(w.unidades).length > 0) {
+          cooptechPct[cid] = Math.max(0, 1 - sumaUnidades(w.unidades));
+        }
+      }
+    }
+    res.json({ resumenes, cooptechPct });
+  } catch (e) { next(e); }
+});
+
+// PUT /grilla/resumen-semana { colaboradorId, lunes, summary }
+// Permiso: el propio colaborador o un manager. Merge quirúrgico: solo el
+// summary de esa semana; las unidades y el resto quedan intactos.
+router.put('/resumen-semana', async (req, res, next) => {
+  try {
+    const colaboradorId = Number(req.body?.colaboradorId);
+    const lunes = String(req.body?.lunes || '');
+    const summary = String(req.body?.summary ?? '').trim();
+    if (!colaboradorId || !/^\d{4}-\d{2}-\d{2}$/.test(lunes)) throw new ApiError(400, 'bad_request', 'Faltan colaborador o lunes');
+    if (req.colaborador?.tipo !== 'manager' && req.colaborador?.id !== colaboradorId) {
+      throw new ApiError(403, 'forbidden', 'Solo podés editar tu propio resumen semanal');
+    }
+    const mes = lunes.slice(0, 7);
+    const lunesMes = lunesDelMes(mes);
+    const idx = lunesMes.indexOf(lunes);
+    if (idx < 0) throw new ApiError(400, 'bad_request', 'Ese lunes no pertenece a las semanas del mes (arrancan el primer lunes del mes)');
+
+    const cm = await prisma.costoMensual.findUnique({ where: { mes } });
+    const asig = (cm?.asignaciones && typeof cm.asignaciones === 'object') ? { ...cm.asignaciones } : {};
+    const fila = (asig[colaboradorId] && typeof asig[colaboradorId] === 'object') ? { ...asig[colaboradorId] } : {};
+    const weeks = Array.from({ length: lunesMes.length }, (_, i) => {
+      const w = Array.isArray(fila.weeks) ? fila.weeks[i] : null;
+      return { summary: w?.summary || '', unidades: { ...(w?.unidades || {}) } };
+    });
+    weeks[idx] = { ...weeks[idx], summary };
+    fila.weeks = weeks;
+    asig[colaboradorId] = fila;
+
+    await prisma.costoMensual.upsert({
+      where: { mes },
+      update: { asignaciones: asig },
+      create: { mes, asignaciones: asig },
+    });
+    res.json({ ok: true, summary });
   } catch (e) { next(e); }
 });
 
