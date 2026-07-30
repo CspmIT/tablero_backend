@@ -10,7 +10,17 @@
       "Bash(mkdir -p /tmp/claude-1000/-home-cspmdesarrollo03-Documentos-proyectos-tablero-backend/864e3e77-6f88-45a7-8e84-f3d0e3ab35ec/scratchpad/zips)",
       "Bash(unzip -q -o /home/cspmdesarrollo03/Descargas/tablero_backend_13_07.zip -d back)",
       "Bash(unzip -q -o /home/cspmdesarrollo03/Descargas/tablero_frontend_13_07.zip -d front)",
-      "Bash(npx prisma *)"
+      "Bash(npx prisma *)",
+      "Bash(cd /home/cspmdesarrollo03; diff Documentos/proyectos/tablero_frontend/src/modules/Configuracion.jsx Descargas/Leo_front/src/modules/Configuracion.jsx | head -100; echo \"===== pushClient =====\"; cat Descargas/Leo_front/src/utils/pushClient.js; echo \"===== sw.js =====\"; cat Descargas/Leo_front/public/sw.js)",
+      "Read(//home/cspmdesarrollo03/**)",
+      "Bash(cp -r Descargas/Leo_back/prisma/migrations/20260730090000_reunion_respuestas Descargas/Leo_back/prisma/migrations/20260730100000_push_suscripciones Documentos/proyectos/tablero_backend/prisma/migrations/)",
+      "Bash(cp Descargas/Leo_back/prisma/schema.prisma Documentos/proyectos/tablero_backend/prisma/schema.prisma)",
+      "Bash(cp Descargas/Leo_back/src/lib/graph.js Descargas/Leo_back/src/lib/push.js Documentos/proyectos/tablero_backend/src/lib/)",
+      "Bash(cp Descargas/Leo_back/src/routes/analisis.js Descargas/Leo_back/src/routes/index.js Descargas/Leo_back/src/routes/leads.js Descargas/Leo_back/src/routes/reuniones.js Descargas/Leo_back/src/routes/push.js Documentos/proyectos/tablero_backend/src/routes/)",
+      "Bash(cp Descargas/Leo_front/index.html Documentos/proyectos/tablero_frontend/index.html)",
+      "Bash(cp Descargas/Leo_front/src/main.jsx Descargas/Leo_front/src/nav.js Documentos/proyectos/tablero_frontend/src/)",
+      "Bash(cp Descargas/Leo_front/src/api/index.js Documentos/proyectos/tablero_frontend/src/api/index.js)",
+      "Bash(cp Descargas/Leo_front/src/modules/Configuracion.jsx Descargas/Leo_front/src/modules/Grilla.jsx Descargas/Leo_front/src/modules/MiMes.jsx Documentos/proyectos/tablero_frontend/src/modules/)"
     ]
   }
 }

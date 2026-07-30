@@ -104,13 +104,14 @@ async function obtenerToken(credenciales) {
   return tokenCache.token;
 }
 
-export async function graphFetch(path, { method = 'GET', body, credenciales } = {}) {
+export async function graphFetch(path, { method = 'GET', body, credenciales, headers = {} } = {}) {
   const token = await obtenerToken(credenciales);
   const res = await fetch(`${GRAPH}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
       ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...headers,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -137,6 +138,7 @@ export async function crearEvento({ casilla: casillaParam, subject, cuerpo, fech
     body: {
       subject,
       body: { contentType: 'text', content: cuerpo || subject },
+      categories: ['Tablero Cooptech'], // marca anti-duplicado del sync inverso
       start: { dateTime: `${fecha}T${horaInicio}:00`, timeZone: TZ },
       end: { dateTime: `${fecha}T${horaFin}:00`, timeZone: TZ },
       attendees,
@@ -165,6 +167,32 @@ export async function actualizarEvento({ casilla, eventId, subject, fecha, horaI
 export async function cancelarEvento({ casilla, eventId }) {
   await graphFetch(`/users/${encodeURIComponent(casilla)}/events/${encodeURIComponent(eventId)}`, {
     method: 'DELETE', esperarVacio: true,
+  });
+}
+
+// Lee el calendario de un colaborador en un rango (sync inverso 30/07):
+// TODAS sus reuniones de Outlook, las genere quien las genere. Horarios en
+// zona Argentina vía Prefer para mapear directo a días de la grilla.
+export async function listarCalendario({ email, desde, hasta }) {
+  const sel = 'id,iCalUId,subject,start,end,isAllDay,sensitivity,isCancelled,responseStatus,onlineMeetingUrl,onlineMeeting,attendees,categories';
+  const path = `/users/${encodeURIComponent(email)}/calendarView?startDateTime=${desde}T00:00:00&endDateTime=${hasta}T23:59:59&$select=${sel}&$orderby=start/dateTime&$top=200`;
+  const r = await graphFetch(path, { headers: { Prefer: 'outlook.timezone="America/Argentina/Buenos_Aires"' } });
+  return Array.isArray(r?.value) ? r.value : [];
+}
+
+// Responde la invitación en nombre del INVITADO: localiza su copia del evento
+// por iCalUId (el id difiere entre buzones) y postea accept/decline/tentative.
+// Best-effort: si falla, la respuesta interna de la app vale igual.
+export async function responderInvitacion({ casillaOrganizador, eventId, emailInvitado, respuesta }) {
+  const original = await graphFetch(`/users/${encodeURIComponent(casillaOrganizador)}/events/${encodeURIComponent(eventId)}?$select=iCalUId`);
+  const uid = original?.iCalUId;
+  if (!uid) throw new ApiError(502, 'graph_error', 'No se pudo identificar el evento (iCalUId)');
+  const lista = await graphFetch(`/users/${encodeURIComponent(emailInvitado)}/events?$filter=iCalUId eq '${uid.replace(/'/g, "''")}'&$select=id&$top=1`);
+  const copia = lista?.value?.[0]?.id;
+  if (!copia) throw new ApiError(502, 'graph_error', 'La invitación todavía no está en el buzón del invitado');
+  const accion = { aceptada: 'accept', rechazada: 'decline', provisional: 'tentativelyAccept' }[respuesta];
+  await graphFetch(`/users/${encodeURIComponent(emailInvitado)}/events/${encodeURIComponent(copia)}/${accion}`, {
+    method: 'POST', body: { sendResponse: true },
   });
 }
 

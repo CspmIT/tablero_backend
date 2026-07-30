@@ -41,8 +41,12 @@ router.get('/ociosidad', async (req, res, next) => {
     const finAnio = new Date(Date.UTC(anio, 11, 31));
     const hastaAnio = (anio === hoy.getUTCFullYear() && hoy < finAnio) ? hoy : finAnio;
 
+    // Solo perfiles INTERNOS del área (gerenciales, externos y tercerizados
+    // distorsionan las métricas de capacidad). Se incluyen INACTIVOS cuya
+    // vigencia (períodos) toca el año — p.ej. una baja de mitad de año cuenta
+    // su ociosidad hasta la baja.
     const [colaboradores, periodos, feriados, entradas] = await Promise.all([
-      prisma.colaborador.findMany({ where: { activo: true }, select: { id: true, nombre: true }, orderBy: { nombre: 'asc' } }),
+      prisma.colaborador.findMany({ where: { tipo: { in: ['manager', 'collaborator'] } }, select: { id: true, nombre: true, activo: true }, orderBy: { nombre: 'asc' } }),
       prisma.colaboradorPeriodo.findMany(),
       prisma.feriado.findMany({ where: { fecha: { gte: desdeAnio, lte: hastaAnio } } }),
       prisma.grillaEntrada.findMany({
@@ -62,7 +66,11 @@ router.get('/ociosidad', async (req, res, next) => {
     for (const p of periodos) (porColabPeriodos[p.colaboradorId] ||= []).push(p);
 
     const filas = colaboradores.map((c) => {
-      // Tramos de vigencia dentro del año (sin períodos = todo el año).
+      // Con períodos: tramos = intersección con el año (si no tocan el año, la
+      // fila se descarta más abajo). Sin períodos cargados: solo los ACTIVOS
+      // cuentan (todo el año); un inactivo sin períodos no es fechable.
+      const tienePeriodos = !!porColabPeriodos[c.id];
+      if (!tienePeriodos && !c.activo) return null;
       const tramos = (porColabPeriodos[c.id] || [{ desde: desdeAnio, hasta: null }])
         .map(p => ({
           desde: new Date(Math.max(dia(new Date(p.desde)), desdeAnio)),
@@ -70,6 +78,7 @@ router.get('/ociosidad', async (req, res, next) => {
         }))
         .filter(t => t.desde <= t.hasta);
 
+      const mios = entradas.filter(e => e.colaboradorId === c.id);
       let findes = 0, fers = 0;
       for (const t of tramos) {
         for (let d = new Date(t.desde); d <= t.hasta; d.setUTCDate(d.getUTCDate() + 1)) {
@@ -78,11 +87,12 @@ router.get('/ociosidad', async (req, res, next) => {
           else if (feriadosHabiles.has(d.toISOString().slice(0, 10))) fers++;
         }
       }
-      const mios = entradas.filter(e => e.colaboradorId === c.id);
       const vac = mios.filter(e => e.estado === 'vacaciones').length;
       const fra = mios.filter(e => e.estado === 'franco' || e.estado === 'franco_cumple').length;
       const lic = mios.filter(e => e.estado === 'licencia').length;
 
+      // Sin vigencia en el año y sin registros personales → fuera de la tabla.
+      if (tienePeriodos && tramos.length === 0 && mios.length === 0) return null;
       const semiCalendario = (findes + fers) * JORNADA;
       const semiPersonal = (vac + fra + lic) * JORNADA;
       return {
@@ -92,7 +102,7 @@ router.get('/ociosidad', async (req, res, next) => {
         semisumaPersonal: semiPersonal,
         total: semiCalendario + semiPersonal,
       };
-    });
+    }).filter(Boolean);
     res.json({ anio, hasta: hastaAnio.toISOString().slice(0, 10), jornada: JORNADA, colaboradores: filas });
   } catch (e) { next(e); }
 });
@@ -180,12 +190,15 @@ router.get('/rotacion', async (req, res, next) => {
       : `${Number(hasta.slice(0, 4)) - 1}-${hasta.slice(5)}`; // default: 12 meses
     if (desde > hasta) throw new ApiError(400, 'bad_request', 'El mes de inicio es posterior al de fin');
 
+    // Solo internos del área (la rotación de gerenciales/externos no es
+    // rotación del equipo). Inactivos incluidos: sus bajas SON la rotación.
     const [colaboradores, periodos] = await Promise.all([
-      prisma.colaborador.findMany({ select: { id: true, nombre: true } }),
+      prisma.colaborador.findMany({ where: { tipo: { in: ['manager', 'collaborator'] } }, select: { id: true, nombre: true } }),
       prisma.colaboradorPeriodo.findMany(),
     ]);
+    const idsInternos = new Set(colaboradores.map(c => c.id));
     const porColab = {};
-    for (const p of periodos) (porColab[p.colaboradorId] ||= []).push(p);
+    for (const p of periodos) { if (idsInternos.has(p.colaboradorId)) (porColab[p.colaboradorId] ||= []).push(p); }
 
     const meses = [];
     let [y, m] = desde.split('-').map(Number);

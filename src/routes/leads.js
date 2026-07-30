@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { graphConfigurado, crearEventoVideollamada, resolverGraphConfig, diasParaVencer } from '../lib/graph.js';
 import { horasEntre } from './reuniones.js';
+import { notificarColaboradores, notificarSuscriptosA } from '../lib/push.js';
 
 const router = Router();
 
@@ -247,6 +248,11 @@ router.post('/:id/videollamada', async (req, res, next) => {
       }
       return { ...actividad, reunionId: reunion.id };
     });
+    notificarColaboradores(ids.filter(i => i !== req.colaborador?.id), {
+      titulo: 'Invitación a videollamada',
+      cuerpo: `${lead.organizacion} · ${fecha.split('-').reverse().join('/')} ${horaInicio}–${horaFin}`,
+      url: '/',
+    });
 
     res.status(201).json({
       actividad: resultado,
@@ -444,6 +450,12 @@ router.post('/:id/ganar', async (req, res, next) => {
       }
       return { lead: updated, proyecto, tareasCreadas: creadas };
     });
+    // Notificación opt-in "CRM: lead ganado" (preferencias de Configuración).
+    notificarSuscriptosA('crm_lead_ganado', {
+      titulo: '🎉 Lead ganado',
+      cuerpo: nombreProyecto,
+      url: '/',
+    }, req.colaborador?.id);
     res.json(result);
   } catch (e) { next(e); }
 });

@@ -639,8 +639,21 @@ model Reunion {
   casilla          String?           // buzón donde vive el evento
   joinUrl          String?           @db.Text
   estado           ReunionEstado     @default(activa)
+  respuestas       Json?             // { [colabId]: 'aceptada'|'rechazada'|'provisional' }
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
   @@index([fecha, estado])
+}
+
+// Suscripciones Web Push por colaborador (notificaciones con la app cerrada).
+model PushSuscripcion {
+  id            Int      @id @default(autoincrement())
+  colaboradorId Int
+  endpoint      String   @db.VarChar(500)
+  datos         Json     // { keys: { p256dh, auth } } y demás campos de la suscripción
+  createdAt     DateTime @default(now())
+
+  @@unique([endpoint])
+  @@index([colaboradorId])
 }
