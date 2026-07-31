@@ -77,7 +77,34 @@ function parsearJson(data, etiqueta) {
 
 // POST /criteria/preguntas { relevamiento, imagenes?, epigrafesNoEnviadas? }
 // → { preguntas: [≤5], tokens }
-router.post('/preguntas', async (req, res, next) => {
+// SSE de punta a punta (30/07): el bug de producción era que el streaming
+// existía solo entre Anthropic y este backend — hacia el navegador la
+// respuesta era un res.json() al FINAL, y los proxies intermedios (timeout
+// típico: 60s) mataban la conexión muda → HTTP 504: la generación jamás
+// llegó a destino. Ahora la respuesta ES un event-stream: cabeceras al
+// instante, latido cada 10s mientras Claude trabaja, y el resultado como
+// evento final. X-Accel-Buffering:no desactiva el buffering de nginx.
+function iniciarSSE(res) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write(': hola\n\n');
+  const latido = setInterval(() => { try { res.write(': latido\n\n'); } catch {} }, 10000);
+  return {
+    resultado(obj) { res.write(`event: resultado\ndata: ${JSON.stringify(obj)}\n\n`); },
+    error(e) {
+      const cuerpo = { error: e?.code || 'error', mensaje: e?.message || 'Falló la generación' };
+      res.write(`event: error\ndata: ${JSON.stringify(cuerpo)}\n\n`);
+    },
+    cerrar() { clearInterval(latido); try { res.end(); } catch {} },
+  };
+}
+
+router.post('/preguntas', async (req, res) => {
+  const sse = iniciarSSE(res);
   try {
     const contenido = armarContenido(req.body || {});
     contenido.push({ type: 'text', text: 'Devolvé SOLO el JSON de preguntas.' });
@@ -88,16 +115,18 @@ router.post('/preguntas', async (req, res, next) => {
       stream: true, // generaciones largas: sin stream, el borde corta ~100 s
     });
     const out = parsearJson(data, 'las preguntas');
-    res.json({
+    sse.resultado({
       preguntas: (out.preguntas || []).slice(0, 5),
       tokens: { entrada: data.usage?.input_tokens, salida: data.usage?.output_tokens },
     });
-  } catch (e) { next(e); }
+  } catch (e) { sse.error(e); }
+  finally { sse.cerrar(); }
 });
 
 // POST /criteria/generar { relevamiento, imagenes?, epigrafesNoEnviadas?, respuestas? }
 // → { planteo, tokens, modelo }
-router.post('/generar', async (req, res, next) => {
+router.post('/generar', async (req, res) => {
+  const sse = iniciarSSE(res);
   try {
     const contenido = armarContenido(req.body || {});
     contenido.push({ type: 'text', text: 'Componé el planteo aplicando el criterio. Respondé SOLO el JSON.' });
@@ -108,12 +137,13 @@ router.post('/generar', async (req, res, next) => {
       stream: true, // imprescindible: la generación tarda 1-3 min
     });
     const planteo = parsearJson(data, 'un planteo');
-    res.json({
+    sse.resultado({
       planteo,
       modelo: data.model,
       tokens: { entrada: data.usage?.input_tokens, salida: data.usage?.output_tokens },
     });
-  } catch (e) { next(e); }
+  } catch (e) { sse.error(e); }
+  finally { sse.cerrar(); }
 });
 
 export default router;
