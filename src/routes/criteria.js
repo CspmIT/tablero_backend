@@ -5,7 +5,7 @@
 // cliente, ~1100 px): sin dependencias nuevas de imagen en el servidor.
 import { Router } from 'express';
 import { llamarClaude } from '../lib/anthropic.js';
-import { SYSTEM_GENERAR, SYSTEM_PREGUNTAS } from '../lib/criteriaPrompt.js';
+import { SYSTEM_GENERAR, SYSTEM_PREGUNTAS, SYSTEM_NOTA } from '../lib/criteriaPrompt.js';
 import { ApiError } from '../middleware/errorHandler.js';
 
 const router = Router();
@@ -142,6 +142,30 @@ router.post('/generar', async (req, res) => {
       modelo: data.model,
       tokens: { entrada: data.usage?.input_tokens, salida: data.usage?.output_tokens },
     });
+  } catch (e) { sse.error(e); }
+  finally { sse.cerrar(); }
+});
+
+// POST /criteria/nota { relevamiento, planteoResumen?, destinatario, motivo }
+// Redacta UNA nota a terceros bajo demanda (el planteo solo las sugiere).
+router.post('/nota', async (req, res) => {
+  const sse = iniciarSSE(res);
+  try {
+    const { relevamiento, planteoResumen, destinatario, motivo } = req.body || {};
+    if (!destinatario) throw new ApiError(400, 'bad_request', 'Falta el destinatario de la nota');
+    const contenido = [
+      { type: 'text', text: 'CONTEXTO DEL RELEVAMIENTO:\n' + JSON.stringify(relevamiento || {}) },
+      ...(planteoResumen ? [{ type: 'text', text: 'RESUMEN DEL PLANTEO:\n' + String(planteoResumen).slice(0, 4000) }] : []),
+      { type: 'text', text: `DESTINATARIO: ${JSON.stringify(destinatario)}\nMOTIVO: ${String(motivo || '')}\nRedactá la nota. Respondé SOLO el JSON.` },
+    ];
+    const data = await llamarClaude({
+      system: SYSTEM_NOTA,
+      messages: [{ role: 'user', content: contenido }],
+      maxTokens: 3000,
+      stream: true,
+    });
+    const nota = parsearJson(data, 'la nota');
+    sse.resultado({ nota, tokens: { entrada: data.usage?.input_tokens, salida: data.usage?.output_tokens } });
   } catch (e) { sse.error(e); }
   finally { sse.cerrar(); }
 });

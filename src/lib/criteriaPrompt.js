@@ -40,11 +40,26 @@ FORMATO DE SALIDA — devolvé EXCLUSIVAMENTE un JSON válido (sin markdown, sin
   "equipamiento": [ { "item": "...", "cantidad": 1, "asignacion": "Multivac 1 / AI-2", "regla_aplicada": "cita del catálogo o 'criterio_propuesto'", "notas": "..." } ],
   "asignacion_recursos": [ { "equipo": "Multivac 1 (M1)", "ubicacion": "...", "entradas_analogicas": ["AI-1: ..."], "buses_modbus": ["canal 1: ..."] } ],
   "advertencias": [ "..." ],
-  "notas_a_terceros": [ { "cuando_aplica": "solo si hay intervención sobre infraestructura de un tercero; si no, array vacío", "destinatario_organismo": "...", "destinatario_persona_o_area": "...", "asunto": "...", "cuerpo": "borrador EDITABLE de la nota, en nombre del CLIENTE (su gerencia firma): solicitud formal + 'Propósito de la Solicitud' con 3 viñetas de beneficios mutuos + pedidos concretos numerados + cierre formal" } ],
+  "notas_a_terceros_sugeridas": [ { "cuando_aplica": "solo si hay intervención sobre infraestructura de un tercero; si no, array vacío. NO redactes la nota: solo sugerila (el usuario puede tener convenio previo con el organismo y no necesitarla; la redacción se pide aparte si hace falta)", "destinatario_organismo": "...", "destinatario_persona_o_area": "...", "motivo": "una frase: qué se pide y por qué (p.ej. acceso a señal del macromedidor)", "regla": "la regla del criterio que la origina" } ],
   "etapas": [ { "numero": 1, "alcance": "...", "justificacion": "..." } ],
   "a_revisar": [ { "aspecto": "...", "que_falta": "...", "por_que_bloquea": "..." } ]
 }
 Si el usuario adjunta RESPUESTAS ACLARATORIAS, incorporalas al análisis como datos del relevamiento.`;
+
+// Redacción bajo demanda de UNA nota a terceros (31/07): el planteo solo las
+// sugiere; el cuerpo se genera acá cuando el usuario la pide (ahorro de
+// tokens y de notas innecesarias cuando ya existe convenio con el organismo).
+export const SYSTEM_NOTA = `${BASE}
+
+Tu tarea: redactar UNA nota formal a un tercero, en nombre del CLIENTE (su gerencia la firma), para viabilizar un ítem del planteo de monitoreo.
+Vas a recibir: el contexto del relevamiento/planteo y el destinatario+motivo de la nota.
+Respondé SOLO un JSON:
+{
+  "destinatario_organismo": "...",
+  "destinatario_persona_o_area": "...",
+  "asunto": "...",
+  "cuerpo": "nota formal completa y EDITABLE: encabezado con [Membrete de la Cooperativa cliente], [Lugar y fecha], destinatario; referencia; solicitud formal; 'Propósito de la Solicitud' con 3 viñetas de beneficios mutuos; pedidos concretos numerados (autorización, datos técnicos necesarios, coordinación de visita); compromiso de intervención pasiva; cierre formal con [Firma] y datos de contacto entre corchetes"
+}`;
 
 export const SYSTEM_PREGUNTAS = `${BASE}
 

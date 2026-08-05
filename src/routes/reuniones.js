@@ -7,7 +7,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
-import { graphConfigurado, crearEvento, actualizarEvento, cancelarEvento, armarAttendees, responderInvitacion, listarCalendario } from '../lib/graph.js';
+import { graphConfigurado, crearEvento, actualizarEvento, cancelarEvento, armarAttendees, responderInvitacion, listarCalendario, obtenerAsistentesEvento } from '../lib/graph.js';
 import { notificarColaboradores } from '../lib/push.js';
 
 const router = Router();
@@ -97,6 +97,8 @@ router.get('/', async (req, res, next) => {
 // { titulo, fecha, horaInicio, horaFin, modalidad, lugar?, colaboradoresIds[], notas? }
 router.post('/', async (req, res, next) => {
   try {
+    const emailsExternos = (Array.isArray(req.body?.emailsExternos) ? req.body.emailsExternos : [])
+      .map(e => String(e).trim().toLowerCase()).filter(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)).slice(0, 10);
     const { titulo, fecha, horaInicio, horaFin, notas } = req.body || {};
     const modalidad = req.body?.modalidad === 'presencial' ? 'presencial' : 'virtual';
     const lugar = modalidad === 'presencial' ? String(req.body?.lugar || '').trim() : null;
@@ -117,7 +119,7 @@ router.post('/', async (req, res, next) => {
         const cols = await emailsDe(ids);
         const organizador = cols.find(c => c.id === req.colaborador.id);
         if (!organizador?.email) throw new ApiError(400, 'bad_request', 'Tu ficha no tiene email cargado (Equipo): necesario para crear el evento en tu Outlook');
-        const attendees = armarAttendees({ emails: cols.filter(c => c.id !== req.colaborador.id).map(c => c.email) });
+        const attendees = armarAttendees({ emails: [...(cols.filter(c => c.id !== req.colaborador.id).map(c => c.email)), ...emailsExternos] });
         const { evento, casillaUsada } = await crearEvento({
           casilla: organizador.email,
           subject: `Reunión Cooptech · ${String(titulo).trim()}`,
@@ -135,7 +137,7 @@ router.post('/', async (req, res, next) => {
         data: {
           tipo: 'interna', titulo: String(titulo).trim(),
           fecha: fechaD, horaInicio, horaFin, modalidad, lugar,
-          organizadorId: req.colaborador.id,
+          organizadorId: req.colaborador.id, emailsExternos,
           colaboradoresIds: ids,
           tags: tags.length ? tags : null,
           graphEventId: graphInfo?.id || null,
@@ -178,6 +180,10 @@ router.patch('/:id', async (req, res, next) => {
     const idsNuevos = req.body?.colaboradoresIds
       ? [...new Set([...(req.body.colaboradoresIds || []).map(Number), r.organizadorId].filter(Boolean))]
       : idsViejos;
+    const emailsExternos = req.body?.emailsExternos !== undefined
+      ? (Array.isArray(req.body.emailsExternos) ? req.body.emailsExternos : [])
+        .map(e => String(e).trim().toLowerCase()).filter(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)).slice(0, 10)
+      : (Array.isArray(r.emailsExternos) ? r.emailsExternos : []);
     const tags = req.body?.tags !== undefined
       ? (Array.isArray(req.body.tags) ? req.body.tags.map(t => String(t).trim()).filter(Boolean).slice(0, 6) : [])
       : (Array.isArray(r.tags) ? r.tags : []);
@@ -188,10 +194,23 @@ router.patch('/:id', async (req, res, next) => {
     if (r.graphEventId && r.casilla) {
       try {
         const cols = await emailsDe(idsNuevos);
-        let attendees = armarAttendees({ emails: cols.filter(c => c.id !== r.organizadorId).map(c => c.email) });
+        // PRESERVAR EXTERNOS (fix 04/08, caso Carola): Graph reemplaza la
+        // lista de asistentes al editar, y a los quitados les manda una
+        // CANCELACIÓN. Leemos los asistentes actuales del evento y
+        // conservamos a todo el que NO sea colaborador interno (invitados a
+        // mano en Outlook, mails del cliente, etc.).
+        const actuales = await obtenerAsistentesEvento({ casilla: r.casilla, eventId: r.graphEventId });
+        const todosColabs = new Set((await prisma.colaborador.findMany({ select: { email: true } }))
+          .map(c => String(c.email || '').toLowerCase()).filter(Boolean));
+        const casillaLc = String(decodeURIComponent(r.casilla) || '').toLowerCase();
+        const externosPreservados = actuales.filter(e => !todosColabs.has(e) && e !== casillaLc);
+        const externosFinal = [...new Set([...emailsExternos, ...externosPreservados])];
+        let attendees = armarAttendees({ emails: [...cols.filter(c => c.id !== r.organizadorId).map(c => c.email), ...externosFinal] });
         if (r.tipo === 'cliente' && r.leadId) {
           const lead = await prisma.lead.findUnique({ where: { id: r.leadId }, select: { email: true, contactoNombre: true, organizacion: true } });
-          if (lead?.email) attendees = armarAttendees({ emailLead: lead.email, contactoNombre: lead.contactoNombre, organizacion: lead.organizacion, emails: cols.map(c => c.email) });
+          // Los externos también se preservan en reuniones de cliente (el
+          // lead va como emailLead, así que se lo excluye para no duplicarlo).
+          if (lead?.email) attendees = armarAttendees({ emailLead: lead.email, contactoNombre: lead.contactoNombre, organizacion: lead.organizacion, emails: [...cols.map(c => c.email), ...externosFinal.filter(e => e !== String(lead.email).toLowerCase())] });
         }
         await actualizarEvento({
           casilla: r.casilla, eventId: r.graphEventId,
@@ -212,7 +231,7 @@ router.patch('/:id', async (req, res, next) => {
         where: { id: r.id },
         // Al reprogramar, las respuestas se reinician (como en Outlook): la
         // fecha nueva vuelve a preguntar a todos.
-        data: { titulo, fecha: fechaNueva, horaInicio, horaFin, lugar, colaboradoresIds: idsNuevos, tags: tags.length ? tags : null, respuestas: {} },
+        data: { titulo, fecha: fechaNueva, horaInicio, horaFin, lugar, colaboradoresIds: idsNuevos, tags: tags.length ? tags : null, respuestas: {}, emailsExternos },
       });
       await agregarItemsGrilla(tx, idsNuevos, fechaNueva, {
         text: textoItemReunion(nuevo), wip: false, reunionId: nuevo.id,
