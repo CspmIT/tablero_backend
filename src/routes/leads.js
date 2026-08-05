@@ -4,10 +4,16 @@ import { ApiError } from '../middleware/errorHandler.js';
 import { graphConfigurado, crearEventoVideollamada, resolverGraphConfig, diasParaVencer } from '../lib/graph.js';
 import { horasEntre } from './reuniones.js';
 import { notificarColaboradores, notificarSuscriptosA } from '../lib/push.js';
+import { getConfig, setConfig } from '../lib/config.js';
 
 const router = Router();
 
-const LEAD_FIELDS = ['organizacion','contactoNombre','telefono','email','ciudad','fechaPrimerContacto',
+// Catálogo de productos comercializables (05/08): gestionable desde la app
+// (engranaje del CRM → Listado de productos), persistido en Configuracion.
+// Nunca más un deploy para agregar un producto.
+const PRODUCTOS_DEFAULT = ['+Agua', 'Reconecta', 'Centinela', 'CoopCloud', 'Call Center', 'Antivirus ESET', 'Cooptech (consultoría)', 'Otro'];
+
+const LEAD_FIELDS = ['organizacion','contactoNombre','cargo','telefono','email','ciudad','fechaPrimerContacto',
   'ownerId','etapa','valorEstimadoUsd','esEvento','montoFacturadoUsd','cantidadEquipos','equiposDetalle',
   'proximaAccion','proximaAccionFecha','motivoPerdido','notas','fuente','fuenteOtra',
   'trialVence','trialNotas','presupuestoEnviadoFecha','presupuestoAprobadoFecha','presupuestoLink',
@@ -98,6 +104,26 @@ router.get('/visitas-tecnicas', async (req, res, next) => {
 });
 
 // Baja el estado completo del relevamiento de UN lead (al abrirlo).
+// GET/PUT del catálogo de productos (todo el equipo puede gestionarlo).
+router.get('/productos-catalogo', async (_req, res, next) => {
+  try {
+    const raw = await getConfig('crm_productos');
+    let lista = null;
+    try { lista = raw ? JSON.parse(raw) : null; } catch { lista = null; }
+    res.json({ productos: Array.isArray(lista) && lista.length ? lista : PRODUCTOS_DEFAULT });
+  } catch (e) { next(e); }
+});
+router.put('/productos-catalogo', async (req, res, next) => {
+  try {
+    const lista = (Array.isArray(req.body?.productos) ? req.body.productos : [])
+      .map(x => String(x).trim()).filter(Boolean).slice(0, 30);
+    const unicos = [...new Set(lista)];
+    if (!unicos.length) throw new ApiError(400, 'bad_request', 'El catálogo no puede quedar vacío');
+    await setConfig('crm_productos', JSON.stringify(unicos));
+    res.json({ productos: unicos });
+  } catch (e) { next(e); }
+});
+
 router.get('/:id/relevamiento-agua', async (req, res, next) => {
   try {
     const lead = await prisma.lead.findUnique({
@@ -164,6 +190,8 @@ router.post('/:id/videollamada', async (req, res, next) => {
     if (!lead) throw new ApiError(404, 'not_found', 'Lead no encontrado');
 
     const { fecha, horaInicio, horaFin, notas } = req.body || {};
+    const emailsExternos = (Array.isArray(req.body?.emailsExternos) ? req.body.emailsExternos : [])
+      .map(e => String(e).trim().toLowerCase()).filter(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)).slice(0, 10);
     const ids = (Array.isArray(req.body?.colaboradoresIds) ? req.body.colaboradoresIds : []).map(Number).filter(Boolean);
     if (!fecha || !/^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) throw new ApiError(400, 'bad_request', 'Falta la fecha (YYYY-MM-DD)');
     if (!horaInicio || !horaFin) throw new ApiError(400, 'bad_request', 'Faltan hora de inicio y fin');
@@ -186,6 +214,7 @@ router.post('/:id/videollamada', async (req, res, next) => {
           emailLead: lead.email || null,
           contactoNombre: lead.contactoNombre || null,
           emailsColaboradores: involucrados.map(c => c.email).filter(Boolean),
+          emailsExtra: emailsExternos,
         });
         const cred = await resolverGraphConfig();
         const dias = diasParaVencer(cred?.vence);
@@ -221,7 +250,7 @@ router.post('/:id/videollamada', async (req, res, next) => {
       // Outlook y los involucrados → reprogramar/cancelar desde la app.
       const reunion = await tx.reunion.create({
         data: {
-          tipo: 'cliente', titulo: lead.organizacion,
+          tipo: 'cliente', titulo: lead.organizacion, emailsExternos,
           fecha: fechaD, horaInicio, horaFin, modalidad: 'virtual',
           organizadorId: req.colaborador?.id ?? null,
           leadId: id, crmActividadId: actividad.id,

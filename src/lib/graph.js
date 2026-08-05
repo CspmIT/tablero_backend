@@ -170,6 +170,16 @@ export async function cancelarEvento({ casilla, eventId }) {
   });
 }
 
+// Asistentes actuales de un evento (fix cancelaciones 04/08): al editar,
+// Graph REEMPLAZA la lista y a los quitados les llega una CANCELACIÓN — hay
+// que leer y preservar a los externos (p.ej. invitados a mano en Outlook).
+export async function obtenerAsistentesEvento({ casilla, eventId }) {
+  try {
+    const r = await graphFetch(`/users/${encodeURIComponent(casilla)}/events/${eventId}?$select=attendees`);
+    return Array.isArray(r?.attendees) ? r.attendees.map(a => String(a?.emailAddress?.address || '').toLowerCase()).filter(Boolean) : [];
+  } catch { return []; }
+}
+
 // Lee el calendario de un colaborador en un rango (sync inverso 30/07):
 // TODAS sus reuniones de Outlook, las genere quien las genere. Horarios en
 // zona Argentina vía Prefer para mapear directo a días de la grilla.
@@ -203,8 +213,8 @@ export function armarAttendees({ emailLead, contactoNombre, organizacion, emails
   ].filter(Boolean);
 }
 
-export async function crearEventoVideollamada({ organizacion, fecha, horaInicio, horaFin, notas, emailLead, contactoNombre, emailsColaboradores = [] }) {
-  const attendees = armarAttendees({ emailLead, contactoNombre, organizacion, emails: emailsColaboradores });
+export async function crearEventoVideollamada({ organizacion, fecha, horaInicio, horaFin, notas, emailLead, contactoNombre, emailsColaboradores, emailsExtra = [] }) {
+  const attendees = armarAttendees({ emailLead, contactoNombre, organizacion, emails: [...(emailsColaboradores || []), ...(emailsExtra || [])] });
   const { evento, casillaUsada } = await crearEvento({
     subject: `Videollamada Cooptech · ${organizacion}`,
     cuerpo: notas || `Videollamada con ${organizacion}.`,

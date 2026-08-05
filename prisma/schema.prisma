@@ -319,6 +319,7 @@ model ObjetivoAporteActividad {
 model Lead {
   id                 Int    @id @default(autoincrement())
   contactoNombre     String?
+  cargo            String?           // cargo del contacto (Carola 05/08)
   organizacion       String
   telefono           String?
   email              String?
@@ -634,6 +635,7 @@ model Reunion {
   leadId           Int?
   crmActividadId   Int?
   colaboradoresIds Json              // [int] involucrados (incluye organizador)
+  emailsExternos   Json?             // [string] invitados por mail (Carola 04/08)
   tags             Json?             // etiquetas del ítem de grilla (prueba estrella)
   graphEventId     String?           // permite PATCH/DELETE del evento Outlook
   casilla          String?           // buzón donde vive el evento
