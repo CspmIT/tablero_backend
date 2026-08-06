@@ -173,6 +173,19 @@ export async function cancelarEvento({ casilla, eventId }) {
 // Asistentes actuales de un evento (fix cancelaciones 04/08): al editar,
 // Graph REEMPLAZA la lista y a los quitados les llega una CANCELACIÓN — hay
 // que leer y preservar a los externos (p.ej. invitados a mano en Outlook).
+// Respuestas de TODOS los asistentes (05/08): quién aceptó/rechazó/está
+// tentativo según Outlook — internos y EXTERNOS por igual (la fuente de
+// verdad para los mails del cliente, que responden desde su propio correo).
+export async function obtenerRespuestasEvento({ casilla, eventId }) {
+  const r = await graphFetch(`/users/${encodeURIComponent(casilla)}/events/${eventId}?$select=attendees`);
+  const mapa = { accepted: 'acepto', declined: 'rechazo', tentativelyAccepted: 'tentativo', none: 'sin_respuesta', notResponded: 'sin_respuesta' };
+  return (Array.isArray(r?.attendees) ? r.attendees : []).map(a => ({
+    email: String(a?.emailAddress?.address || '').toLowerCase(),
+    nombre: a?.emailAddress?.name || null,
+    respuesta: mapa[a?.status?.response] || 'sin_respuesta',
+  })).filter(a => a.email);
+}
+
 export async function obtenerAsistentesEvento({ casilla, eventId }) {
   try {
     const r = await graphFetch(`/users/${encodeURIComponent(casilla)}/events/${eventId}?$select=attendees`);
