@@ -67,6 +67,7 @@ enum EtapaLead {
   trial
   ganado
   perdido
+  declinado
 }
 
 // Estado de un día en la grilla semanal de actividad.

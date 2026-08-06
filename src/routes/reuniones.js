@@ -7,7 +7,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
-import { graphConfigurado, crearEvento, actualizarEvento, cancelarEvento, armarAttendees, responderInvitacion, listarCalendario, obtenerAsistentesEvento } from '../lib/graph.js';
+import { graphConfigurado, crearEvento, actualizarEvento, cancelarEvento, armarAttendees, responderInvitacion, listarCalendario, obtenerAsistentesEvento, obtenerRespuestasEvento } from '../lib/graph.js';
 import { notificarColaboradores } from '../lib/push.js';
 
 const router = Router();
@@ -405,6 +405,20 @@ router.post('/sync-outlook', async (req, res, next) => {
     });
 
     res.json({ ok: true, agregadas, actualizadas, eliminadas, salteados, encontradas: deseados.size });
+  } catch (e) { next(e); }
+});
+
+// GET /reuniones/:id/respuestas-outlook — respuestas EN VIVO desde el evento
+// (internos y externos por igual; para externos es la única fuente de verdad).
+router.get('/:id/respuestas-outlook', async (req, res, next) => {
+  try {
+    const r = await prisma.reunion.findUnique({ where: { id: Number(req.params.id) } });
+    if (!r || r.estado !== 'activa') throw new ApiError(404, 'not_found', 'Reunión inexistente o cancelada');
+    const soy = (Array.isArray(r.colaboradoresIds) ? r.colaboradoresIds : []).includes(req.colaborador?.id);
+    if (!soy && req.colaborador?.tipo !== 'manager') throw new ApiError(403, 'forbidden', 'Solo participantes');
+    if (!r.graphEventId || !r.casilla || !(await graphConfigurado())) return res.json({ respuestas: [], sinOutlook: true });
+    const respuestas = await obtenerRespuestasEvento({ casilla: r.casilla, eventId: r.graphEventId });
+    res.json({ respuestas });
   } catch (e) { next(e); }
 });
 
