@@ -135,6 +135,7 @@ model Colaborador {
   proyectosOwner     Proyecto[]           @relation("ProyectoOwner")
   grillaEntradas     GrillaEntrada[]
   weeklyWips         WeeklyWip[]
+  notasSemanales     NotaSemanal[]
   francosEspeciales  FrancoEspecial[]
   carryovers         Carryover[]
   actividadesCrm     CrmActividad[]
@@ -335,6 +336,11 @@ model Lead {
   esEvento         Boolean  @default(false) // marca el lead como presentación en evento (Objetivo 8)
   valorOrigen      String   @default("manual") // "manual" | "presupuestador"
   montoFacturadoUsd Decimal? @db.Decimal(14, 2)
+  // Ingresos (ola 3, 07/08): abono mensual genérico (Call Center, ESET, etc.;
+  // para CoopCloud la vista cae a coopcloudCostoMensual si esto es null) y
+  // fecha de ganado (se estampa sola al pasar a Ganado; editable p/ backfill).
+  abonoMensualUsd  Decimal? @db.Decimal(14, 2)
+  fechaGanado      DateTime? @db.Date
   cantidadEquipos  Int?
   equiposDetalle   String?  @db.Text
 
@@ -493,6 +499,21 @@ model WeeklyWip {
 
 // Rotación de guardias: una fila por semana (anio + week), con las asignaciones embebidas.
 // asignaciones: [{ id: colaboradorId, vacation?: boolean, count?: number }]
+// Mis notas (ola 3, 07/08): texto libre semanal por persona, visible para
+// todos, editable SOLO por su autor (lo impone la ruta: autor = token).
+// Misma clave de semana que WeeklyWip: año calendario del lunes + semana ISO.
+model NotaSemanal {
+  id            Int      @id @default(autoincrement())
+  colaboradorId Int
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  anio          Int
+  semanaIso     Int
+  texto         String   @db.Text
+  updatedAt     DateTime @updatedAt
+
+  @@unique([colaboradorId, anio, semanaIso])
+}
+
 model GuardiaSemana {
   id           Int    @id @default(autoincrement())
   anio         Int

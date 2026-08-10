@@ -16,15 +16,12 @@ router.get('/', async (req, res, next) => {
 router.get('/exportar-excel', async (req, res, next) => {
   try {
     const anio = Number(req.query.anio) || new Date().getFullYear();
-    const [costos, colaboradores, wips] = await Promise.all([
+    const [costos, colaboradores] = await Promise.all([
       prisma.costoMensual.findMany({ where: { mes: { startsWith: `${anio}-` } } }),
       prisma.colaborador.findMany({ select: { id: true, nombre: true, funcionCosto: true } }),
-      // Resúmenes semanales de la grilla (WIP): van al costado de cada bloque
-      // mensual (columnas Y..AC), como en el Excel original de administración.
-      prisma.weeklyWip.findMany({ where: { anio } }),
     ]);
     const meses = Object.fromEntries(costos.map((c) => [c.mes, c]));
-    const buffer = await generarExcelCostos({ anio, meses, colaboradores, wips });
+    const buffer = await generarExcelCostos({ anio, meses, colaboradores });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="Costos_Operacion_Cooptech_${anio}.xlsx"`);
     res.send(Buffer.from(buffer));

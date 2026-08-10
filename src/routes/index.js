@@ -22,6 +22,8 @@ import criteriaRouter from './criteria.js';
 import permisosRouter from './permisos.js';
 import reunionesRouter from './reuniones.js';
 import pushRouter from './push.js';
+import notasRouter from './notas.js';
+import multivacRouter from './multivac.js';
 
 const router = Router();
 
@@ -207,6 +209,8 @@ router.use('/permisos', permisosRouter);
 router.use('/reuniones', reunionesRouter);
 // Notificaciones push (suscripción del navegador/PWA)
 router.use('/push', pushRouter);
+router.use('/notas', notasRouter);      // Mis notas semanales (ola 3)
+router.use('/multivac', multivacRouter); // Botones compartidos del terminal (ola 3)
 // Costos: solo rol gerencial/manager puede escribir; lectura para todos los habilitados
 router.use('/costos', costosRouter);
 

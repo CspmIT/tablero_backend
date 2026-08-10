@@ -17,9 +17,10 @@ const LEAD_FIELDS = ['organizacion','contactoNombre','cargo','telefono','email',
   'ownerId','etapa','valorEstimadoUsd','esEvento','montoFacturadoUsd','cantidadEquipos','equiposDetalle',
   'proximaAccion','proximaAccionFecha','motivoPerdido','notas','fuente','fuenteOtra',
   'trialVence','trialNotas','presupuestoEnviadoFecha','presupuestoAprobadoFecha','presupuestoLink',
+  'abonoMensualUsd','fechaGanado',
   'presupuestoEstado','presupuestoAguaEstado','coopcloudEstado','coopcloudCostoMensual'];
 
-const LEAD_DATE_FIELDS = ['fechaPrimerContacto', 'proximaAccionFecha', 'trialVence', 'presupuestoEnviadoFecha', 'presupuestoAprobadoFecha'];
+const LEAD_DATE_FIELDS = ['fechaPrimerContacto', 'proximaAccionFecha', 'trialVence', 'presupuestoEnviadoFecha', 'presupuestoAprobadoFecha', 'fechaGanado'];
 const coerceFecha = (v) => {
   if (!v) return null;
   const d = new Date(String(v).slice(0, 10) + 'T00:00:00.000Z');
@@ -31,7 +32,7 @@ function pickLead(body) {
   for (const k of LEAD_FIELDS) if (k in body) out[k] = body[k];
   for (const k of LEAD_DATE_FIELDS) if (k in out) out[k] = coerceFecha(out[k]);
   if ('cantidadEquipos' in out) out.cantidadEquipos = out.cantidadEquipos === '' || out.cantidadEquipos == null ? null : Number(out.cantidadEquipos);
-  for (const k of ['valorEstimadoUsd', 'montoFacturadoUsd', 'coopcloudCostoMensual']) if (k in out) out[k] = out[k] === '' || out[k] == null ? null : Number(out[k]);
+  for (const k of ['valorEstimadoUsd', 'montoFacturadoUsd', 'coopcloudCostoMensual', 'abonoMensualUsd']) if (k in out) out[k] = out[k] === '' || out[k] == null ? null : Number(out[k]);
   return out;
 }
 
@@ -146,6 +147,61 @@ router.put('/:id/relevamiento-agua', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// --- Ingresos (ola 3, 07/08) ---------------------------------------------
+// Serie mensual de ingresos del año a partir de los leads GANADOS:
+//   implementación = montoFacturadoUsd ?? valorEstimadoUsd → mes de fechaGanado
+//   abono mensual  = abonoMensualUsd ?? coopcloudCostoMensual → desde el mes de
+//                    fechaGanado hasta el mes corriente (ingresos, no proyección)
+// Ganados sin fechaGanado se devuelven aparte (la UI pide completarlos).
+// Solo lectura. OJO: ruta literal ANTES de '/:id'.
+router.get('/ingresos', async (req, res, next) => {
+  try {
+    const hoy = new Date();
+    const anio = Number(req.query.anio) || hoy.getFullYear();
+    // Último mes con ingresos "reales" para el año pedido (12 si es pasado, 0 si es futuro).
+    const mesLimite = anio < hoy.getFullYear() ? 12 : (anio > hoy.getFullYear() ? 0 : hoy.getMonth() + 1);
+    const ganados = await prisma.lead.findMany({ where: { etapa: 'ganado' }, include: { productos: true } });
+    const detalle = [];
+    const sinFecha = [];
+    for (const l of ganados) {
+      const productos = l.productos.map((p) => p.producto);
+      const producto = productos[0] || 'Otro';
+      if (!l.fechaGanado) {
+        sinFecha.push({ id: l.id, organizacion: l.organizacion, producto });
+        continue;
+      }
+      const implementacion = l.montoFacturadoUsd != null ? Number(l.montoFacturadoUsd) : (l.valorEstimadoUsd != null ? Number(l.valorEstimadoUsd) : 0);
+      const implementacionOrigen = l.montoFacturadoUsd != null ? 'facturado' : (l.valorEstimadoUsd != null ? 'presupuesto' : null);
+      const abono = l.abonoMensualUsd != null ? Number(l.abonoMensualUsd) : (l.coopcloudCostoMensual != null ? Number(l.coopcloudCostoMensual) : 0);
+      const abonoOrigen = l.abonoMensualUsd != null ? 'manual' : (l.coopcloudCostoMensual != null ? 'coopcloud' : null);
+      const fg = new Date(l.fechaGanado);
+      const anioG = fg.getUTCFullYear();
+      const mesG = fg.getUTCMonth() + 1;
+      const meses = Array.from({ length: 12 }, () => ({ implementacion: 0, abono: 0 }));
+      if (anioG === anio && implementacion) meses[mesG - 1].implementacion = implementacion;
+      if (abono) {
+        const desde = anioG < anio ? 1 : (anioG === anio ? mesG : 13);
+        for (let m = desde; m <= mesLimite; m++) meses[m - 1].abono = abono;
+      }
+      const totalAnio = meses.reduce((sum, x) => sum + x.implementacion + x.abono, 0);
+      if (totalAnio > 0 || anioG === anio) {
+        detalle.push({ id: l.id, organizacion: l.organizacion, producto, productos, fechaGanado: l.fechaGanado, implementacion, implementacionOrigen, abono, abonoOrigen, meses, totalAnio });
+      }
+    }
+    // Serie apilable por producto (para el gráfico) + total por mes.
+    const serie = [];
+    for (const d of detalle) {
+      let fila = serie.find((x) => x.producto === d.producto);
+      if (!fila) { fila = { producto: d.producto, meses: Array(12).fill(0) }; serie.push(fila); }
+      d.meses.forEach((m, i) => { fila.meses[i] += m.implementacion + m.abono; });
+    }
+    serie.sort((a, b) => b.meses.reduce((x, y) => x + y, 0) - a.meses.reduce((x, y) => x + y, 0));
+    const totalMes = Array(12).fill(0);
+    serie.forEach((f) => f.meses.forEach((v, i) => { totalMes[i] += v; }));
+    res.json({ anio, mesLimite, detalle, serie, totalMes, sinFecha });
+  } catch (e) { next(e); }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const l = await prisma.lead.findUnique({ where: { id: Number(req.params.id) }, include: { productos: true } });
@@ -159,6 +215,12 @@ router.patch('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const data = pickLead(req.body);
+    // Fecha de ganado (ola 3): se estampa SOLA al pasar a ganado si no viene
+    // en el body ni existe en la base. Nunca pisa un valor ya cargado.
+    if (data.etapa === 'ganado' && !data.fechaGanado) {
+      const actual = await prisma.lead.findUnique({ where: { id }, select: { fechaGanado: true } });
+      if (actual && !actual.fechaGanado) data.fechaGanado = coerceFecha(new Date().toISOString());
+    }
     if (Array.isArray(req.body.productos)) {
       await prisma.leadProducto.deleteMany({ where: { leadId: id } });
       data.productos = { create: req.body.productos.map(p => ({ producto: p })) };
@@ -445,7 +507,7 @@ router.post('/:id/ganar', async (req, res, next) => {
     const nombreProyecto = (lead.organizacion && lead.organizacion.trim()) || `Lead ${id}`;
 
     const result = await prisma.$transaction(async (tx) => {
-      const updated = await tx.lead.update({ where: { id }, data: { etapa: 'ganado' } });
+      const updated = await tx.lead.update({ where: { id }, data: { etapa: 'ganado', ...(lead.fechaGanado ? {} : { fechaGanado: coerceFecha(new Date().toISOString()) }) } });
       const proyecto = await tx.proyecto.create({
         data: { nombre: nombreProyecto, cliente: nombreProyecto, leadId: id, ownerId: ownerValido, estado: 'activo' },
       });
