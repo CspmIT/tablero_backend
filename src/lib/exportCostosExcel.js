@@ -40,14 +40,6 @@ function semanasDelMes(anio, mesIdx) {
   return semanas;
 }
 
-// Réplica exacta de getISOWeek del frontend (grillaUtils).
-function isoWeek(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
-}
-
 const dd = (n) => String(n).padStart(2, '0');
 
 // Etiqueta estilo Leonardo: "Semana 1 - 05 al 11", con el fin recortado al
@@ -137,7 +129,7 @@ function limpiarBloque(hoja, b, anio, mesIdx) {
   if (b.dineroCpt) hoja.cell(`M${b.dineroCpt}`).formula(`IF(N(N${b.cotizacion})=0,0,I${b.dineroCpt}/N${b.cotizacion})`);
 }
 
-// data: { costoLaboral, cotizacionDolar, filas: [{nombre, peso, unidades, esDesarrollo, colaboradorId}], wipsPorClave }
+// data: { costoLaboral, cotizacionDolar, filas: [{nombre, peso, unidades, esDesarrollo, colaboradorId, resumenes}] }
 function volcarMes(hoja, b, data, anio, mesIdx) {
   if (data.filas.length > (b.ultimaPersona - b.primeraPersona + 1)) {
     throw new Error(`El bloque de ${b.mes} tiene ${b.ultimaPersona - b.primeraPersona + 1} renglones y hay ${data.filas.length} colaboradores: hay que ampliar la plantilla (no se insertan filas automáticamente para no romper los asientos).`);
@@ -151,9 +143,9 @@ function volcarMes(hoja, b, data, anio, mesIdx) {
     for (const [uid, col] of Object.entries(COL_UNIDAD)) {
       hoja.cell(`${col}${r}`).value(fila.unidades[uid] || 0);
     }
-    // Resumen semanal (WIP de la grilla) al costado: una celda por semana.
-    semanas.forEach((lunes, w) => {
-      const texto = data.wipsPorClave?.[`${fila.colaboradorId}:${lunes.getFullYear()}-W${isoWeek(lunes)}`];
+    // Resumen semanal (propio de costos) al costado: una celda por semana.
+    semanas.forEach((_, w) => {
+      const texto = fila.resumenes?.[w];
       if (texto) hoja.cell(`${COLS_SEMANA[w]}${r}`).value(texto);
     });
     if (!fila.esDesarrollo && fila.peso > 0) filasNoDesarrollo.push(r);
@@ -167,7 +159,7 @@ function volcarMes(hoja, b, data, anio, mesIdx) {
   hoja.cell(`W${b.costoLaboral}`).formula(`SUM(W${f}:W${l})${resta}`);
 }
 
-export async function generarExcelCostos({ anio, meses, colaboradores, wips = [] }) {
+export async function generarExcelCostos({ anio, meses, colaboradores }) {
   const ruta = PLANTILLAS[anio];
   if (!ruta) throw new Error(`No hay plantilla para el año ${anio} (hay: ${Object.keys(PLANTILLAS).join(', ')})`);
   const wb = await XlsxPopulate.fromDataAsync(readFileSync(ruta));
@@ -175,8 +167,6 @@ export async function generarExcelCostos({ anio, meses, colaboradores, wips = []
   const bloques = detectarBloques(hoja);
 
   const porId = Object.fromEntries(colaboradores.map((c) => [String(c.id), c]));
-  // WIP semanal indexado con la misma clave que usa la grilla (getWeekKey).
-  const wipsPorClave = Object.fromEntries(wips.map((w) => [`${w.colaboradorId}:${w.anio}-W${w.semanaIso}`, w.texto]));
 
   for (let mesIdx = 0; mesIdx < 12; mesIdx++) {
     const nombreMes = MESES[mesIdx];
@@ -194,7 +184,13 @@ export async function generarExcelCostos({ anio, meses, colaboradores, wips = []
         const unidades = unidadesDelMes(a?.weeks);
         const tieneAlgo = peso > 0 || Object.values(unidades).some((x) => x > 0);
         if (!colab || !tieneAlgo) return null;
-        return { nombre: colab.nombre, peso, unidades, esDesarrollo: (colab.funcionCosto || 'desarrollo') === 'desarrollo', colaboradorId: Number(cid) };
+        // Resumen semanal: el "resumen propio de costos" (weeks[i].summary),
+        // NO el WIP de la grilla — son dos textos distintos (fix 07/08: el
+        // export salía con el WIP genérico en vez de los resúmenes de acá).
+        // Índice posicional: weeks[] se guarda con la misma convención
+        // weeksOfMonth que usan las columnas del Excel.
+        const resumenes = (a?.weeks || []).map((w) => String(w?.summary || '').trim());
+        return { nombre: colab.nombre, peso, unidades, esDesarrollo: (colab.funcionCosto || 'desarrollo') === 'desarrollo', colaboradorId: Number(cid), resumenes };
       })
       .filter(Boolean)
       .sort((a, z) => a.nombre.localeCompare(z.nombre));
@@ -203,7 +199,6 @@ export async function generarExcelCostos({ anio, meses, colaboradores, wips = []
       costoLaboral: cm.costoLaboral != null ? Number(cm.costoLaboral) : null,
       cotizacionDolar: cm.cotizacionDolar != null ? Number(cm.cotizacionDolar) : null,
       filas,
-      wipsPorClave,
     }, anio, mesIdx);
   }
 
