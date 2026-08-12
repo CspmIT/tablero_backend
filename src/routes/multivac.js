@@ -126,13 +126,16 @@ router.put('/plantilla-sensor', async (req, res, next) => {
 // las placas desde la plataforma (esptool-js). SIN migración: el catálogo es
 // una clave JSON en Configuracion; los binarios van a MinIO por el gateway
 // (patrón Archivo, contexto 'firmware'). Cada release = manifiesto:
-// { modelo, chip, version, notas, flash:{mode,freq,size},
-//   segmentos:[{offset:'0x1000', key, nombre, tamano}], fecha, subidoPor }
+// { modelo, chip, producto, version, nombre, aprobado, notas,
+//   flash:{mode,freq,size}, segmentos:[{offset:'0x1000', key, nombre, tamano}],
+//   fecha, subidoPor }
 // NUNCA erase-all: se escriben SOLO los segmentos del manifiesto (NVS/LittleFS
 // y el spool de mediciones quedan intactos — decisión de Lorenzo, 10/08).
 // ---------------------------------------------------------------------------
 const CLAVE_FIRMWARES = 'multivac_firmwares';
 const CHIPS = ['esp32', 'esp32s3', 'esp32c3'];
+// Producto (aplicación) que corre el firmware — columna del catálogo (12/08).
+const PRODUCTOS_FW = ['General', '+Agua', 'Reconecta', 'Centinela'];
 // Criterio de diseño (12/08): cada modelo de placa tiene UN chip inamovible —
 // el servidor lo impone aunque el cliente mande otra cosa. Placa nueva = una línea.
 const CHIP_POR_MODELO = {
@@ -167,6 +170,13 @@ router.put('/firmwares', async (req, res, next) => {
         modelo,
         chip: CHIP_POR_MODELO[modelo] || (CHIPS.includes(f?.chip) ? f.chip : 'esp32'),
         version: String(f?.version || '').trim().slice(0, 40),
+        // Rediseño 12/08 (mockup de Leonardo): columnas Producto | Versión |
+        // Nombre | Archivos | Comentario, y flujo de aprobación en dos vistas.
+        producto: PRODUCTOS_FW.includes(f?.producto) ? f.producto : 'General',
+        nombre: String(f?.nombre || '').trim().slice(0, 120),
+        // aprobado=true ⇒ visible en "Actualizaciones de firmware" (todos los
+        // usuarios habilitados). false ⇒ solo en "Gestión de versiones" (área).
+        aprobado: f?.aprobado === true,
         notas: String(f?.notas || '').trim().slice(0, 1000),
         flash: {
           mode: String(f?.flash?.mode || 'keep').slice(0, 10),
