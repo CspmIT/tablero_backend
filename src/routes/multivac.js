@@ -133,6 +133,15 @@ router.put('/plantilla-sensor', async (req, res, next) => {
 // ---------------------------------------------------------------------------
 const CLAVE_FIRMWARES = 'multivac_firmwares';
 const CHIPS = ['esp32', 'esp32s3', 'esp32c3'];
+// Criterio de diseño (12/08): cada modelo de placa tiene UN chip inamovible —
+// el servidor lo impone aunque el cliente mande otra cosa. Placa nueva = una línea.
+const CHIP_POR_MODELO = {
+  'Multivac 1.0/7.1': 'esp32',
+  'Multivac 8.0': 'esp32s3',
+  'Lector de pulsos RS485': 'esp32c3',
+  'Sensor ultrasónico RS485': 'esp32c3',
+  'Lector de bombas RS485': 'esp32c3',
+};
 const MAX_RELEASES = 60;
 const MAX_SEGMENTOS = 8;
 
@@ -152,9 +161,11 @@ router.put('/firmwares', async (req, res, next) => {
     if (entrada.length > MAX_RELEASES) throw new ApiError(400, 'bad_request', `Máximo ${MAX_RELEASES} releases`);
     const hexOk = (v) => /^0x[0-9a-fA-F]{1,8}$/.test(String(v || '').trim());
     const firmwares = entrada
-      .map((f) => ({
-        modelo: String(f?.modelo || '').trim().slice(0, 80),
-        chip: CHIPS.includes(f?.chip) ? f.chip : 'esp32',
+      .map((f) => {
+        const modelo = String(f?.modelo || '').trim().slice(0, 80);
+        return ({
+        modelo,
+        chip: CHIP_POR_MODELO[modelo] || (CHIPS.includes(f?.chip) ? f.chip : 'esp32'),
         version: String(f?.version || '').trim().slice(0, 40),
         notas: String(f?.notas || '').trim().slice(0, 1000),
         flash: {
@@ -162,6 +173,11 @@ router.put('/firmwares', async (req, res, next) => {
           freq: String(f?.flash?.freq || 'keep').slice(0, 10),
           size: String(f?.flash?.size || 'keep').slice(0, 10),
         },
+        // Backup del proyecto completo (.zip/.rar) — no se flashea, se descarga.
+        fuente: f?.fuente?.key ? { key: String(f.fuente.key).trim(), nombre: String(f.fuente.nombre || '').slice(0, 160), tamano: f.fuente.tamano != null ? Number(f.fuente.tamano) : null, sha256: /^[0-9a-f]{64}$/.test(f.fuente.sha256) ? f.fuente.sha256 : null } : null,
+        // Imagen merged (mapa completo de flash) — modo "volver a fábrica":
+        // BORRA config y mediciones a propósito (se flashea con erase-all @0x0).
+        merged: f?.merged?.key ? { key: String(f.merged.key).trim(), nombre: String(f.merged.nombre || '').slice(0, 160), tamano: f.merged.tamano != null ? Number(f.merged.tamano) : null, sha256: /^[0-9a-f]{64}$/.test(f.merged.sha256) ? f.merged.sha256 : null } : null,
         segmentos: (Array.isArray(f?.segmentos) ? f.segmentos : [])
           .slice(0, MAX_SEGMENTOS)
           .map((sg) => ({
@@ -169,12 +185,13 @@ router.put('/firmwares', async (req, res, next) => {
             key: String(sg?.key || '').trim(),
             nombre: String(sg?.nombre || '').trim().slice(0, 120),
             tamano: sg?.tamano != null ? Number(sg.tamano) : null,
+            sha256: /^[0-9a-f]{64}$/.test(sg?.sha256) ? sg.sha256 : null,
           }))
           .filter((sg) => hexOk(sg.offset) && sg.key),
         fecha: f?.fecha ? String(f.fecha).slice(0, 30) : new Date().toISOString(),
         subidoPor: String(f?.subidoPor || '').trim().slice(0, 80) || (req.colaborador?.nombre ?? null),
-      }))
-      .filter((f) => f.modelo && f.version && f.segmentos.length);
+      }); })
+      .filter((f) => f.modelo && f.version && (f.segmentos.length || f.merged));
     await setConfig(CLAVE_FIRMWARES, JSON.stringify(firmwares));
     res.json({ firmwares });
   } catch (e) { next(e); }
