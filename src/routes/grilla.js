@@ -20,17 +20,49 @@ router.get('/', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Métricas OV (18/08): id estable por ítem + MERGE por id en el guardado del
+// día. Regla dura del diseño: la clasificación (ovTipo/ovCausa/...) vive
+// adentro del ítem; si un frontend viejo manda el ítem SIN esos campos, acá
+// se preservan desde lo ya guardado — el PUT nunca pisa la clasificación.
+const nuevoItemId = () => 'i_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const CAMPOS_OV = ['ovTipo', 'ovCausa', 'ovDescartado', 'ovPor', 'ovFecha'];
+function mergeItemsPorId(entrantes, previos) {
+  if (!Array.isArray(entrantes)) return entrantes ?? null;
+  const prevPorId = new Map(
+    (Array.isArray(previos) ? previos : [])
+      .filter((p) => p && typeof p === 'object' && p.id)
+      .map((p) => [p.id, p]),
+  );
+  return entrantes.map((it) => {
+    if (!it || typeof it !== 'object') return it; // ítems legacy (string) intactos
+    const base = { ...it };
+    if (!base.id) base.id = nuevoItemId(); // regla nº3: sin id no se descarta, se asigna
+    const prev = prevPorId.get(base.id);
+    if (prev) {
+      for (const k of CAMPOS_OV) {
+        if (base[k] === undefined && prev[k] !== undefined) base[k] = prev[k];
+      }
+    }
+    return base;
+  });
+}
+
 // Crear o actualizar la entrada de un día (clave: colaboradorId + fecha)
 router.put('/', async (req, res, next) => {
   try {
     const colaboradorId = Number(req.body.colaboradorId);
     const fecha = toDate(req.body.fecha);
     const estado = req.body.estado ?? req.body.status ?? 'present';
+    // Merge por id contra lo ya guardado (no reemplazo ciego del array).
+    const previa = await prisma.grillaEntrada.findUnique({
+      where: { colaboradorId_fecha: { colaboradorId, fecha } },
+      select: { items: true },
+    });
     const payload = {
       estado,
       entryTime: estado === 'present' ? (req.body.entry_time ?? req.body.entryTime ?? null) : null,
       viajeLabel: estado === 'viaje' ? (req.body.viaje_label ?? req.body.viajeLabel ?? null) : null,
-      items: req.body.items ?? null,
+      items: mergeItemsPorId(req.body.items ?? null, previa?.items),
       horasExtra: req.body.horas_extra ?? req.body.horasExtra ?? null,
     };
     const entry = await prisma.grillaEntrada.upsert({

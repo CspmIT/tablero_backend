@@ -15,6 +15,7 @@ import costosRouter from './costos.js';
 import importarRouter from './importar.js';
 import asistenteRouter from './asistente.js';
 import analisisRouter from './analisis.js';
+import analisisOvRouter from './analisisOv.js';
 import etiquetasRouter from './etiquetas.js';
 import integracionesRouter from './integraciones.js';
 import deseosRouter from './deseos.js';
@@ -194,6 +195,10 @@ router.use('/grilla', grillaRouter);
 // Asistente IA (Claude vía API; herramientas filtradas por rol adentro)
 router.use('/asistente', asistenteRouter);
 // Análisis: reportes agregados (permisos por tipo adentro del router)
+// OJO orden de Express: la ruta literal /analisis/ov va ANTES que /analisis
+// (trampa documentada — /analisis tiene su propio requireTipo con 'externo';
+// /analisis/ov es solo manager+gerencial).
+router.use('/analisis/ov', analisisOvRouter);
 router.use('/analisis', analisisRouter);
 // Etiquetas: inventario de uso y unificación de variantes (solo manager)
 router.use('/etiquetas', etiquetasRouter);
