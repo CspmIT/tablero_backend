@@ -250,4 +250,41 @@ router.get('/aprovisionamiento/:leadId', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ---------------------------------------------------------------------------
+// Carpetas de la biblioteca de Documentación (18/08). SIN migración: la lista
+// de carpetas es una clave JSON en Configuracion; cada PDF guarda su carpeta
+// en el campo `url` de su referencia Archivo (libre en este contexto — el
+// binario vive en MinIO y se resuelve por `key`).
+// ---------------------------------------------------------------------------
+const CLAVE_DOC_CARPETAS = 'multivac_doc_carpetas';
+const MAX_CARPETAS = 40;
+
+router.get('/docs-carpetas', async (req, res, next) => {
+  try {
+    const raw = await getConfig(CLAVE_DOC_CARPETAS);
+    let carpetas = [];
+    if (raw) { try { const p = JSON.parse(raw); if (Array.isArray(p)) carpetas = p; } catch { /* vacío */ } }
+    res.json({ carpetas });
+  } catch (e) { next(e); }
+});
+
+// Crear/eliminar carpetas queda para la conducción (misma regla que borrar
+// documentos): manager/gerencial.
+router.put('/docs-carpetas', async (req, res, next) => {
+  try {
+    if (!['manager', 'gerencial'].includes(req.colaborador?.tipo)) {
+      throw new ApiError(403, 'forbidden', 'Solo manager/gerencial administra las carpetas');
+    }
+    const entrada = req.body?.carpetas;
+    if (!Array.isArray(entrada)) throw new ApiError(400, 'bad_request', 'Se espera { carpetas: [...] }');
+    const vistas = new Set();
+    const carpetas = entrada
+      .map((c) => String(c || '').trim().slice(0, 60))
+      .filter((c) => { if (!c) return false; const k = c.toLowerCase(); if (vistas.has(k)) return false; vistas.add(k); return true; })
+      .slice(0, MAX_CARPETAS);
+    await setConfig(CLAVE_DOC_CARPETAS, JSON.stringify(carpetas));
+    res.json({ carpetas });
+  } catch (e) { next(e); }
+});
+
 export default router;
