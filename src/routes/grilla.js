@@ -1,9 +1,94 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { getConfig, setConfig } from '../lib/config.js';
+import { requireTipo } from '../middleware/auth.js';
 const router = Router();
 
 const toDate = (v) => new Date(typeof v === 'string' && v.length === 10 ? v + 'T00:00:00Z' : v);
+
+// ---------------------------------------------------------------------------
+// GRILLA TÍPICA (19/08, pedido de los colaboradores vía Leonardo). SIN
+// migración: la semana default por colaborador vive en la clave JSON
+// `grilla_tipica` de Configuracion:
+//   { "<colaboradorId>": { "1".."5": { estado: 'present'|'home_office',
+//                                      entryTime: 'HH:MM' } } }   (1=lunes)
+// El default es VISUAL: la grilla lo muestra en días sin carga y el editor
+// del día lo precarga — recién se escribe en la base cuando alguien GUARDA el
+// día. Así la base sigue diciendo la verdad (nadie figura presente sin
+// confirmarlo) y feriados/vacaciones/carga real pisan el default solos.
+// ---------------------------------------------------------------------------
+const CLAVE_TIPICA = 'grilla_tipica';
+const ESTADOS_TIPICA = ['present', 'home_office'];
+
+router.get('/tipica', async (req, res, next) => {
+  try {
+    const raw = await getConfig(CLAVE_TIPICA);
+    let tipica = {};
+    if (raw) { try { const p = JSON.parse(raw); if (p && typeof p === 'object') tipica = p; } catch { /* vacío */ } }
+    res.json({ tipica });
+  } catch (e) { next(e); }
+});
+
+router.put('/tipica', requireTipo('manager', 'gerencial'), async (req, res, next) => {
+  try {
+    const entrada = req.body?.tipica;
+    if (!entrada || typeof entrada !== 'object' || Array.isArray(entrada)) {
+      throw new ApiError(400, 'bad_request', 'Se espera { tipica: { colaboradorId: { 1..5: {...} } } }');
+    }
+    // Saneo: solo días 1..5, estados permitidos, hora HH:MM.
+    const tipica = {};
+    for (const [colabId, dias] of Object.entries(entrada)) {
+      if (!/^\d+$/.test(colabId) || !dias || typeof dias !== 'object') continue;
+      const limpio = {};
+      for (const d of ['1', '2', '3', '4', '5']) {
+        const v = dias[d];
+        if (!v || typeof v !== 'object' || !ESTADOS_TIPICA.includes(v.estado)) continue;
+        const entryTime = v.estado === 'present' && /^\d{2}:\d{2}$/.test(String(v.entryTime || '')) ? v.entryTime : null;
+        limpio[d] = entryTime ? { estado: v.estado, entryTime } : { estado: v.estado };
+      }
+      if (Object.keys(limpio).length) tipica[colabId] = limpio;
+    }
+    await setConfig(CLAVE_TIPICA, JSON.stringify(tipica));
+    res.json({ tipica });
+  } catch (e) { next(e); }
+});
+
+// Vacaciones por RANGO (19/08): crea entradas reales estado 'vacaciones' en
+// los días hábiles del rango. SOLO CREA — jamás toca un día ya cargado (ni
+// feriados ni fines de semana). Reversible día a día desde el editor.
+router.post('/vacaciones', requireTipo('manager', 'gerencial'), async (req, res, next) => {
+  try {
+    const colaboradorId = Number(req.body?.colaboradorId);
+    const desde = toDate(req.body?.desde);
+    const hasta = toDate(req.body?.hasta);
+    if (!colaboradorId || !desde || !hasta || Number.isNaN(desde.getTime()) || Number.isNaN(hasta.getTime())) {
+      throw new ApiError(400, 'bad_request', 'Se espera { colaboradorId, desde, hasta } (YYYY-MM-DD)');
+    }
+    if (hasta < desde) throw new ApiError(400, 'bad_request', 'El fin es anterior al inicio');
+    const dias = Math.round((hasta - desde) / 86400000) + 1;
+    if (dias > 92) throw new ApiError(400, 'bad_request', 'Rango demasiado largo (máximo 3 meses) — ¿fecha mal tipeada?');
+    const [existentes, feriados] = await Promise.all([
+      prisma.grillaEntrada.findMany({ where: { colaboradorId, fecha: { gte: desde, lte: hasta } }, select: { fecha: true } }),
+      prisma.feriado.findMany({ where: { fecha: { gte: desde, lte: hasta } }, select: { fecha: true } }),
+    ]);
+    const iso = (d) => d.toISOString().slice(0, 10);
+    const setExistentes = new Set(existentes.map((e) => iso(e.fecha)));
+    const setFeriados = new Set(feriados.map((f) => iso(f.fecha)));
+    let creados = 0; let yaCargados = 0; let enFeriado = 0; let finde = 0;
+    for (let t = desde.getTime(); t <= hasta.getTime(); t += 86400000) {
+      const d = new Date(t);
+      const dow = d.getUTCDay();
+      if (dow === 0 || dow === 6) { finde++; continue; }             // fin de semana
+      if (setFeriados.has(iso(d))) { enFeriado++; continue; }        // el feriado pisa
+      if (setExistentes.has(iso(d))) { yaCargados++; continue; }     // lo cargado es sagrado
+      // eslint-disable-next-line no-await-in-loop
+      await prisma.grillaEntrada.create({ data: { colaboradorId, fecha: d, estado: 'vacaciones' } });
+      creados++;
+    }
+    res.json({ ok: true, creados, yaCargados, enFeriado, finde });
+  } catch (e) { next(e); }
+});
 
 // --- Entradas de la grilla (un registro por colaborador y día) ---
 router.get('/', async (req, res, next) => {

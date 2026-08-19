@@ -21,7 +21,11 @@ const router = Router();
 // Vista ejecutiva: manager + gerencial (decisión Leonardo 18/08). La
 // clasificación desde el editor del día NO pasa por acá (va por el PUT normal
 // de grilla), así los colaboradores clasifican sin ver este tablero.
-router.use(requireTipo('manager', 'gerencial'));
+// 19/08 (pedido de Leonardo): los colaboradores INTERNOS del área también ven
+// y clasifican (les había habilitado la vista desde permisos pero el backend
+// les devolvía 403 → "todo vacío"). Externos y tercerizados siguen afuera.
+// Editar las REGLAS de sugerencia queda para manager/gerencial (abajo).
+router.use(requireTipo('manager', 'gerencial', 'collaborator'));
 
 const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 const TAG_OV = 'oficina virtual';
@@ -186,7 +190,7 @@ router.get('/reglas', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.put('/reglas', async (req, res, next) => {
+router.put('/reglas', requireTipo('manager', 'gerencial'), async (req, res, next) => {
   try {
     const entrada = req.body?.reglas;
     if (!Array.isArray(entrada)) throw new ApiError(400, 'bad_request', 'Se espera { reglas: [...] }');
