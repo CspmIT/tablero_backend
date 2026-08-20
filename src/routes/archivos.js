@@ -64,9 +64,10 @@ router.patch('/:id', async (req, res, next) => {
   try {
     const a = await prisma.archivo.findUnique({ where: { id: Number(req.params.id) } });
     if (!a) throw new ApiError(404, 'not_found', 'Archivo no encontrado');
-    // En la biblioteca compartida, ordenar/retitular es curaduría: manager/gerencial.
-    if (a.contexto === 'multivac_doc' && !['manager', 'gerencial'].includes(req.colaborador?.tipo)) {
-      throw new ApiError(403, 'forbidden', 'Solo manager/gerencial organiza la documentación compartida');
+    // En bibliotecas compartidas, ordenar/retitular es curaduría: manager/gerencial.
+    // 20/08: mismo criterio para la sección Marketing (todos suben, la conducción cura).
+    if (['multivac_doc', 'marketing'].includes(a.contexto) && !['manager', 'gerencial'].includes(req.colaborador?.tipo)) {
+      throw new ApiError(403, 'forbidden', 'Solo manager/gerencial organiza la biblioteca compartida');
     }
     const data = {};
     if (req.body?.nombre !== undefined) data.nombre = String(req.body.nombre || '').trim().slice(0, 200) || a.nombre;
@@ -81,11 +82,11 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const a = await prisma.archivo.findUnique({ where: { id: Number(req.params.id) } });
     if (!a) throw new ApiError(404, 'not_found', 'Archivo no encontrado');
-    // Documentación compartida de AutonomIA (18/08): TODOS pueden subir, pero
-    // eliminar de la biblioteca queda para manager/gerencial (decisión de
-    // Leonardo — punto medio: cualquiera aporta, solo la conducción cura).
-    if (a.contexto === 'multivac_doc' && !['manager', 'gerencial'].includes(req.colaborador?.tipo)) {
-      throw new ApiError(403, 'forbidden', 'Solo manager/gerencial puede eliminar documentación compartida');
+    // Documentación compartida de AutonomIA (18/08) y Marketing (20/08): TODOS
+    // pueden subir, pero eliminar de la biblioteca queda para manager/gerencial
+    // (decisión de Leonardo — punto medio: cualquiera aporta, solo la conducción cura).
+    if (['multivac_doc', 'marketing'].includes(a.contexto) && !['manager', 'gerencial'].includes(req.colaborador?.tipo)) {
+      throw new ApiError(403, 'forbidden', 'Solo manager/gerencial puede eliminar de la biblioteca compartida');
     }
     // Sólo borramos la referencia en la base. El gateway de almacenamiento no
     // expone (todavía) un endpoint de borrado; si más adelante lo agrega, el
