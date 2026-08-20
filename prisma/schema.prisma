@@ -631,6 +631,69 @@ model Deseo {
   @@index([solicitanteId, estado])
 }
 
+// Inbox → Tickets (20/08): mini sistema de tickets espejo de la Mesa de ayuda
+// de la cooperativa. Origen: manual (el equipo digitaliza), whatsapp (guardia)
+// o mesa_ayuda (sync por API cuando Guillermo la exponga — externalId).
+// tipo/prioridad/area quedan como STRING (los valores los define el sistema
+// de la Mesa de ayuda — lección del enum 06/08); estado sí es enum cerrado.
+// Clasificación OV propia (ovTipo/ovCausa/categoriaFalla) + vínculo opcional
+// a un ítem de grilla (antidoble-conteo en Métricas OV: manda el ticket, el
+// ítem aporta las horas). Diseño: claude/Inbox_Tickets_ReporteOV_diseno_20_08.md
+enum TicketEstado {
+  abierto
+  en_proceso
+  resuelto
+  cerrado
+}
+
+enum TicketOrigen {
+  manual
+  whatsapp
+  mesa_ayuda
+}
+
+model Ticket {
+  id             Int          @id @default(autoincrement())
+  sector         String?      // "TU SECTOR" del solicitante (texto libre)
+  titulo         String
+  tipo           String       @default("Incidente")
+  prioridad      String       @default("Media")
+  area           String       @default("Desarrollo")
+  copiarA        String?      @db.Text
+  descripcion    String       @db.Text
+  estado         TicketEstado @default(abierto)
+  origen         TicketOrigen @default(manual)
+  externalId     String?      @unique // id en la Mesa de ayuda (sync idempotente)
+  solicitante    String?      // cliente interno (puede no ser usuario nuestro)
+  creadoPorId    Int?         // colaborador que lo digitalizó (null si vino por API)
+  asignadoAId    Int?
+  ovTipo         String?      // incidente | solicitud
+  ovCausa        String?      // catálogo de causas OV
+  categoriaFalla String?      // a | b | c (mandato M1, solo incidentes)
+  grillaEntradaId Int?        // vínculo al ítem de grilla (entrada + itemId)
+  grillaItemId   String?
+  ocurridoAt     DateTime?    // fecha real del reclamo (WhatsApp de días atrás)
+  resueltoAt     DateTime?
+  cerradoAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([estado, area])
+  @@index([createdAt])
+}
+
+model TicketMensaje {
+  id         Int      @id @default(autoincrement())
+  ticketId   Int
+  autorId    Int?     // null = importado (autor externo en texto)
+  autor      String?
+  texto      String   @db.Text
+  externalId String?  @unique
+  createdAt  DateTime @default(now())
+
+  @@index([ticketId])
+}
+
 // Ola de reuniones (16/07): ciclo de vida completo (crear → reprogramar →
 // cancelar) para reuniones con clientes (CRM) e internas (Mi mes), con el
 // evento de Outlook sincronizado (Graph) y los ítems de grilla marcados.
