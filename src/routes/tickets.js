@@ -99,6 +99,15 @@ router.patch('/:id', async (req, res, next) => {
     const esGestor = ['manager', 'gerencial'].includes(req.colaborador?.tipo);
     const data = {};
 
+    // Edición de la CARGA (título/descripción/sector/tipo/prioridad/solicitante):
+    // solo el autor que la digitalizó + manager/gerencial (decisión de Leonardo
+    // 20/08, feedback de Juan: corregir errores ortográficos). Estado,
+    // clasificación OV, vínculo y mensajes siguen abiertos a todo el interno.
+    const editaCarga = ['titulo', 'sector', 'tipo', 'prioridad', 'solicitante', 'descripcion'].some((k) => b[k] !== undefined);
+    const esAutor = t.creadoPorId != null && t.creadoPorId === req.colaborador?.id;
+    if (editaCarga && !esGestor && !esAutor) {
+      throw new ApiError(403, 'forbidden', 'El texto del ticket lo edita quien lo cargó o manager/gerencial');
+    }
     for (const k of ['titulo', 'sector', 'tipo', 'prioridad', 'solicitante']) {
       if (b[k] !== undefined) data[k] = limpiar(b[k]) || (k === 'titulo' ? t.titulo : null);
     }

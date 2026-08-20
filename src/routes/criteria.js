@@ -62,6 +62,12 @@ function resumenDuro(relevamiento) {
         }
       }
     }
+    // Totales explícitos (20/08 bis): además del detalle, el conteo por tipo
+    // en una línea — "Cisternas" en plural con UN componente = UNA cisterna.
+    const zonas = relevamiento?.zonas || [];
+    const cuenta = (tipo) => zonas.reduce((a, z) => a + (z?.componentes || []).filter((c) => c?.type === tipo).length, 0);
+    const bombas = zonas.reduce((a, z) => a + (z?.componentes || []).reduce((b, c) => b + (c?.type === 'sala_bombeo' && Array.isArray(c?.data?.pumps) ? c.data.pumps.length : 0), 0), 0);
+    L.push(`TOTALES POR TIPO (unidades = componentes cargados; nombres en plural NO suman unidades): cisternas: ${cuenta('cisterna')} · salas de bombeo: ${cuenta('sala_bombeo')} (bombas: ${bombas}) · caudalímetros: ${cuenta('caudalimetro')} · cloración: ${cuenta('cloracion')} · tableros: ${cuenta('tablero')}`);
     return L.length ? 'HECHOS DUROS DEL RELEVAMIENTO (conteos verificados por el sistema — el planteo DEBE ser coherente con esto):\n' + L.join('\n') : null;
   } catch { return null; }
 }
