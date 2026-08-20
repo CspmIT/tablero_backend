@@ -5,7 +5,7 @@
 // cliente, ~1100 px): sin dependencias nuevas de imagen en el servidor.
 import { Router } from 'express';
 import { llamarClaude } from '../lib/anthropic.js';
-import { SYSTEM_GENERAR, SYSTEM_PREGUNTAS, SYSTEM_NOTA } from '../lib/criteriaPrompt.js';
+import { SYSTEM_GENERAR, SYSTEM_PREGUNTAS, SYSTEM_NOTA, SYSTEM_CORREGIR } from '../lib/criteriaPrompt.js';
 import { ApiError } from '../middleware/errorHandler.js';
 
 const router = Router();
@@ -38,6 +38,34 @@ function bloquesImagen(imagenes) {
   return bloques;
 }
 
+// Resumen DURO computado en el servidor (20/08): hechos contables que el
+// modelo no puede pasar por alto aunque el JSON sea largo. Bug de origen:
+// una sala con pumps[3] se planteó como UNA bomba. Determinístico > prompt.
+function resumenDuro(relevamiento) {
+  try {
+    const L = [];
+    for (const z of relevamiento?.zonas || []) {
+      for (const c of z?.componentes || []) {
+        const d = c?.data || {};
+        if (c.type === 'sala_bombeo') {
+          const pumps = Array.isArray(d.pumps) ? d.pumps : [];
+          L.push(`- ${z.nombre || 'Zona'} · ${d.id_local || 'sala de bombeo'}: ${pumps.length} BOMBA(S) [${pumps.map(b => `${b.rotulo || 'bomba'} ${b.tension || ''}`.trim()).join(' | ')}]${d.observaciones ? ` — obs: ${d.observaciones}` : ''}`);
+        }
+        if (c.type === 'caudalimetro') {
+          L.push(`- ${z.nombre || 'Zona'} · ${d.id_local || 'caudalímetro'}: EXISTENTE, tipo ${d.tipo_medicion || '?'}, marca ${d.marca_modelo || '?'}, salida disponible ${d.salida_disponible || '?'}${d.estado ? `, estado ${d.estado}` : ''}`);
+        }
+        if (c.type === 'cisterna') {
+          L.push(`- ${z.nombre || 'Zona'} · ${d.id_local || 'cisterna'}${d.doble_cuerpo ? ' (doble cuerpo)' : ''}${d.altura_util_m ? `, altura útil ${d.altura_util_m} m` : ''}`);
+        }
+        if (c.type === 'cloracion') {
+          L.push(`- ${z.nombre || 'Zona'} · ${d.id_local || 'cloración'}: tipo ${d.tipo || '?'}${d.observaciones ? ` — obs: ${d.observaciones}` : ''}`);
+        }
+      }
+    }
+    return L.length ? 'HECHOS DUROS DEL RELEVAMIENTO (conteos verificados por el sistema — el planteo DEBE ser coherente con esto):\n' + L.join('\n') : null;
+  } catch { return null; }
+}
+
 function armarContenido({ relevamiento, imagenes, epigrafesNoEnviadas, respuestas }) {
   if (!relevamiento || typeof relevamiento !== 'object') {
     throw new ApiError(400, 'bad_request', 'Falta el relevamiento');
@@ -45,6 +73,8 @@ function armarContenido({ relevamiento, imagenes, epigrafesNoEnviadas, respuesta
   const contenido = [
     { type: 'text', text: 'RELEVAMIENTO DE CAMPO (datos estructurados):\n' + JSON.stringify(relevamiento) },
   ];
+  const duro = resumenDuro(relevamiento);
+  if (duro) contenido.push({ type: 'text', text: duro });
   // Los epígrafes de TODAS las fotos viajan como texto, aunque la imagen no se
   // procese por visión (decisión de diseño: el texto ya dice lo que importa).
   if (Array.isArray(epigrafesNoEnviadas) && epigrafesNoEnviadas.length) {
@@ -139,6 +169,42 @@ router.post('/generar', async (req, res) => {
     const planteo = parsearJson(data, 'un planteo');
     sse.resultado({
       planteo,
+      modelo: data.model,
+      tokens: { entrada: data.usage?.input_tokens, salida: data.usage?.output_tokens },
+    });
+  } catch (e) { sse.error(e); }
+  finally { sse.cerrar(); }
+});
+
+// POST /criteria/corregir { relevamiento, planteo, ajustes, feedback? }
+// Corrección dirigida (20/08): los ajustes del validador CORRIGEN el planteo
+// (recalculan equipamiento/asignación), no quedan como comentarios.
+router.post('/corregir', async (req, res) => {
+  const sse = iniciarSSE(res);
+  try {
+    const { relevamiento, planteo, ajustes, feedback } = req.body || {};
+    if (!planteo || typeof planteo !== 'object') throw new ApiError(400, 'bad_request', 'Falta el planteo a corregir');
+    if (!String(ajustes || '').trim() && !feedback) throw new ApiError(400, 'bad_request', 'No hay ajustes para aplicar');
+    const contenido = [
+      { type: 'text', text: 'RELEVAMIENTO DE CAMPO (datos estructurados):\n' + JSON.stringify(relevamiento || {}) },
+    ];
+    const duro = resumenDuro(relevamiento || {});
+    if (duro) contenido.push({ type: 'text', text: duro });
+    contenido.push({ type: 'text', text: 'PLANTEO ACTUAL (a corregir):\n' + JSON.stringify(planteo) });
+    if (String(ajustes || '').trim()) contenido.push({ type: 'text', text: 'AJUSTES DEL INGENIERO VALIDADOR (órdenes de corrección):\n' + String(ajustes).slice(0, 8000) });
+    if (feedback && typeof feedback === 'object' && Object.keys(feedback).length) {
+      contenido.push({ type: 'text', text: 'REACCIONES DE LA REUNIÓN CON EL CLIENTE (por sección: sigue/ahora_no + notas):\n' + JSON.stringify(feedback) });
+    }
+    contenido.push({ type: 'text', text: 'Aplicá las correcciones y devolvé el planteo COMPLETO corregido. SOLO el JSON.' });
+    const data = await llamarClaude({
+      system: SYSTEM_CORREGIR,
+      messages: [{ role: 'user', content: contenido }],
+      maxTokens: 16000,
+      stream: true,
+    });
+    const corregido = parsearJson(data, 'un planteo corregido');
+    sse.resultado({
+      planteo: corregido,
       modelo: data.model,
       tokens: { entrada: data.usage?.input_tokens, salida: data.usage?.output_tokens },
     });
