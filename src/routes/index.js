@@ -19,6 +19,7 @@ import analisisOvRouter from './analisisOv.js';
 import etiquetasRouter from './etiquetas.js';
 import integracionesRouter from './integraciones.js';
 import deseosRouter from './deseos.js';
+import ticketsRouter from './tickets.js';
 import criteriaRouter from './criteria.js';
 import permisosRouter from './permisos.js';
 import reunionesRouter from './reuniones.js';
@@ -206,6 +207,8 @@ router.use('/etiquetas', etiquetasRouter);
 router.use('/integraciones/graph', integracionesRouter);
 // Mis Deseos: pedidos de desarrollo de cualquier colaborador
 router.use('/deseos', deseosRouter);
+// Inbox → Tickets: mini sistema espejo de la Mesa de ayuda (20/08)
+router.use('/tickets', ticketsRouter);
 // CriterIA: composición del plan propuesta +Agua (caso C)
 router.use('/criteria', criteriaRouter);
 // Permisos de UI por usuario (panel de administración de vistas)

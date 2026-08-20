@@ -52,6 +52,27 @@ router.get('/tickets', async (req, res, next) => {
     const colabs = await prisma.colaborador.findMany({ select: { id: true, nombre: true } });
     const nombreDe = new Map(colabs.map((c) => [c.id, c.nombre]));
 
+    // FUENTE NUEVA (20/08, Inbox → Tickets): los tickets CLASIFICADOS suman a
+    // las métricas junto a los ítems de grilla. Antidoble-conteo (decisión
+    // Leonardo): si un ticket clasificado está VINCULADO a un ítem de grilla,
+    // cuenta UNO solo — manda el ticket y el ítem le aporta sus horas (el ítem
+    // no aparece como caso). Un ticket sin clasificar todavía NO cuenta (se
+    // clasifica en el Inbox) y su ítem vinculado sigue contando mientras tanto.
+    const whereT = { ovTipo: { not: null }, ovCausa: { not: null } };
+    // El rango del ticket se evalúa por ocurridoAt (si está) o createdAt; para
+    // no partir la consulta, se filtra en memoria (volumen chico).
+    const ticketsDb = await prisma.ticket.findMany({ where: whereT, orderBy: { createdAt: 'asc' } });
+    const enRango = (d) => {
+      const f = new Date(d);
+      if (req.query.desde && f < toDate(req.query.desde)) return false;
+      if (req.query.hasta && f > new Date(`${String(req.query.hasta).slice(0, 10)}T23:59:59.999Z`)) return false;
+      return true;
+    };
+    const ticketsOV = ticketsDb.filter((t) => enRango(t.ocurridoAt || t.createdAt));
+    const itemVinculado = new Map(); // grillaItemId -> ticket clasificado (excluye el ítem como caso)
+    for (const t of ticketsOV) if (t.grillaItemId) itemVinculado.set(t.grillaItemId, t);
+    const horasVinculadas = new Map(); // ticketId -> horas aportadas por su ítem
+
     const tickets = [];
     for (const e of entradas) {
       const items = Array.isArray(e.items) ? e.items : [];
@@ -83,7 +104,16 @@ router.get('/tickets', async (req, res, next) => {
         const esOV = tags.includes(TAG_OV) && tags.includes(TAG_COOP);
         const esCoop = !esOV && tags.includes(TAG_COOP);
         if (!esOV && !esCoop) continue;
+        // Ítem vinculado a un ticket clasificado: NO cuenta como caso propio,
+        // le transfiere sus horas al ticket (antidoble-conteo, 20/08).
+        const tkv = itemVinculado.get(it.id);
+        if (tkv) {
+          const hs = Number(it.horas) > 0 ? Number(it.horas) : Math.round(prorrateo * 100) / 100;
+          horasVinculadas.set(tkv.id, (horasVinculadas.get(tkv.id) || 0) + hs);
+          continue;
+        }
         tickets.push({
+          origen: 'grilla',
           entradaId: e.id,
           itemId: it.id,
           fecha: e.fecha,
@@ -103,6 +133,36 @@ router.get('/tickets', async (req, res, next) => {
         });
       }
     }
+    // Filas de la fuente Tickets (clasificados). itemId sintético 'tk_<id>'
+    // para las keys del frontend; el editor de ahí NO aplica (se re-clasifica
+    // en el Inbox) — el frontend lo sabe por origen !== 'grilla'.
+    for (const t of ticketsOV) {
+      const hs = horasVinculadas.get(t.id) || 0;
+      const colabId = t.asignadoAId || t.creadoPorId || null;
+      tickets.push({
+        origen: t.origen === 'mesa_ayuda' ? 'ticket_mesa' : (t.origen === 'whatsapp' ? 'ticket_whatsapp' : 'ticket_manual'),
+        ticketId: t.id,
+        entradaId: null,
+        itemId: `tk_${t.id}`,
+        fecha: t.ocurridoAt || t.createdAt,
+        colaboradorId: colabId,
+        colaborador: colabId ? (nombreDe.get(colabId) || `#${colabId}`) : (t.solicitante || 'Sin asignar'),
+        text: `#${t.id} · ${t.titulo}`,
+        tags: [],
+        wip: !['resuelto', 'cerrado'].includes(t.estado),
+        horas: Math.round(hs * 100) / 100,
+        horasReales: hs > 0,
+        directo: true,
+        ovTipo: t.ovTipo,
+        ovCausa: t.ovCausa,
+        ovDescartado: false,
+        ovPor: null,
+        ovFecha: null,
+        ticketEstado: t.estado,
+        categoriaFalla: t.categoriaFalla || null,
+      });
+    }
+
     res.json({ tickets, tipos: TIPOS, causas: CAUSAS });
   } catch (e) { next(e); }
 });
