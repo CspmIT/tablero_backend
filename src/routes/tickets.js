@@ -10,6 +10,7 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { requireTipo } from '../middleware/auth.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { borrarBinario } from '../lib/almacenamiento.js';
 
 const router = Router();
 router.use(requireTipo('manager', 'gerencial', 'collaborator'));
@@ -180,16 +181,26 @@ router.post('/:id/mensajes', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// DELETE /tickets/:id — solo manager/gerencial (los mensajes se borran con él;
-// los adjuntos quedan en MinIO como en el resto de la plataforma).
+// DELETE /tickets/:id — solo manager/gerencial. Se lleva sus mensajes y sus
+// adjuntos: hasta el 21/08 los adjuntos quedaban como filas huérfanas en Archivo
+// (y como binarios eternos en MinIO) porque el gateway no exponía borrado.
 router.delete('/:id', requireTipo('manager', 'gerencial'), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const t = await prisma.ticket.findUnique({ where: { id } });
     if (!t) throw new ApiError(404, 'not_found', 'Ticket no encontrado');
+    // Los adjuntos del ticket se identifican como los sube el frontend:
+    // contexto 'ticket' + url 'ticket:<id>'.
+    const adjuntos = await prisma.archivo.findMany({ where: { contexto: 'ticket', url: `ticket:${id}` } });
     await prisma.ticketMensaje.deleteMany({ where: { ticketId: id } }); // hijos del ticket borrado (alcance acotado por FK lógica)
     await prisma.ticket.delete({ where: { id } });
-    res.json({ ok: true });
+    if (adjuntos.length) {
+      await prisma.archivo.deleteMany({ where: { id: { in: adjuntos.map((a) => a.id) } } });
+      // Binario: best effort, igual que en DELETE /archivos/:id (si el gateway
+      // no responde, el ticket ya se borró y queda el aviso en el log).
+      for (const a of adjuntos) await borrarBinario(a.key);
+    }
+    res.json({ ok: true, adjuntosBorrados: adjuntos.length });
   } catch (e) { next(e); }
 });
 
