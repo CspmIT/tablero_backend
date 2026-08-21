@@ -63,8 +63,19 @@ router.get('/', async (req, res, next) => {
       tareasSeguimiento: { where: { done: false }, select: { id: true, fechaLimite: true } },
     } }) : [];
     const porId = new Map(rows.map(r => [r.id, r]));
+    // LISTA LIVIANA (21/08, punto 5.3 del doc de Juan — decisión de Leonardo):
+    // las 3 columnas JSON de los presupuestadores NO viajan en la lista (con un
+    // relevamiento real la respuesta pesaba 699 KB y el 56 % era UN lead). El
+    // frontend las necesita solo al ABRIR un presupuestador, y ahí pide el lead
+    // completo por id (GET /leads/:id). En su lugar van banderas livianas.
     const data = ids.map(id => porId.get(id)).filter(Boolean)
-      .map(l => ({ ...l, productos: l.productos.map(p => p.producto) }));
+      .map(({ presupuestoEstado, presupuestoAguaEstado, coopcloudEstado, ...l }) => ({
+        ...l,
+        productos: l.productos.map(p => p.producto),
+        tienePresupuesto: !!presupuestoEstado,
+        tieneRelevamientoAgua: !!presupuestoAguaEstado,
+        tieneCoopcloud: !!coopcloudEstado,
+      }));
     res.json({ data, pagination: { page, pageSize, total } });
   } catch (e) { next(e); }
 });

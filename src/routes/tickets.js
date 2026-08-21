@@ -182,8 +182,9 @@ router.post('/:id/mensajes', async (req, res, next) => {
 });
 
 // DELETE /tickets/:id — solo manager/gerencial. Se lleva sus mensajes y sus
-// adjuntos: hasta el 21/08 los adjuntos quedaban como filas huérfanas en Archivo
-// (y como binarios eternos en MinIO) porque el gateway no exponía borrado.
+// adjuntos (fix de Juan 21/08, masters 8): hasta entonces los adjuntos quedaban
+// como filas huérfanas en Archivo (y binarios eternos en MinIO, que ahora sí
+// expone borrado — lib/almacenamiento.js).
 router.delete('/:id', requireTipo('manager', 'gerencial'), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
