@@ -264,9 +264,12 @@ const TOOLS = [
     },
     run: async () => {
       const leads = await prisma.lead.findMany({
+        // Los nombres reales del modelo (la herramienta pedía valorUsd/proxAccion,
+        // que no existen: la llamada moría con "Unknown field" y el asistente se
+        // quedaba sin embudo).
         select: {
-          id: true, organizacion: true, etapa: true, valorUsd: true,
-          proxAccion: true, proxAccionFecha: true,
+          id: true, organizacion: true, etapa: true, valorEstimadoUsd: true,
+          proximaAccion: true, proximaAccionFecha: true,
           productos: { select: { producto: true } },
         },
         orderBy: { updatedAt: 'desc' }, take: 300,
@@ -276,15 +279,15 @@ const TOOLS = [
         const e = l.etapa;
         porEtapa[e] = porEtapa[e] || { cantidad: 0, valorUsd: 0 };
         porEtapa[e].cantidad += 1;
-        porEtapa[e].valorUsd += Number(l.valorUsd || 0);
+        porEtapa[e].valorUsd += Number(l.valorEstimadoUsd || 0);
       }
       return {
         totalesPorEtapa: porEtapa,
         leads: leads.map(l => ({
-          organizacion: l.organizacion, etapa: l.etapa, valorUsd: Number(l.valorUsd || 0),
+          organizacion: l.organizacion, etapa: l.etapa, valorUsd: Number(l.valorEstimadoUsd || 0),
           productos: l.productos.map(p => p.producto),
-          proxAccion: l.proxAccion,
-          proxAccionFecha: l.proxAccionFecha ? l.proxAccionFecha.toISOString().slice(0, 10) : null,
+          proxAccion: l.proximaAccion,
+          proxAccionFecha: l.proximaAccionFecha ? l.proximaAccionFecha.toISOString().slice(0, 10) : null,
         })),
       };
     },
