@@ -44,16 +44,27 @@ router.get('/', async (req, res, next) => {
     if (req.query.ownerId) where.ownerId = Number(req.query.ownerId);
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize) || 50));
-    const [rows, total] = await Promise.all([
-      prisma.lead.findMany({ where, include: {
-        productos: true,
-        // Tareas pendientes (livianas) para el distintivo de vencidas en la tarjeta.
-        tareasSeguimiento: { where: { done: false }, select: { id: true, fechaLimite: true } },
-      }, orderBy: { updatedAt: 'desc' },
+    // ORDEN EN DOS PASOS (20/08): MySQL no puede ORDENAR filas anchas — falla con
+    // 1038 "Out of sort memory" en cuanto UNA fila supera el sort_buffer_size del
+    // servidor (256 KB acá). Pasó con el relevamiento de Balnearia: 390 KB de JSON
+    // en presupuestoAguaEstado (el mapa de la localidad y el logo van en base64) y
+    // todo el CRM devolvía 500. Primero se ordena y paginá una consulta FINA (solo
+    // el id; el sort ni ve los JSON) y después se traen las filas completas por id,
+    // sin ORDER BY, reordenándolas en memoria. La respuesta es idéntica.
+    const [orden, total] = await Promise.all([
+      prisma.lead.findMany({ where, select: { id: true }, orderBy: { updatedAt: 'desc' },
         skip: (page - 1) * pageSize, take: pageSize }),
       prisma.lead.count({ where }),
     ]);
-    const data = rows.map(l => ({ ...l, productos: l.productos.map(p => p.producto) }));
+    const ids = orden.map(o => o.id);
+    const rows = ids.length ? await prisma.lead.findMany({ where: { id: { in: ids } }, include: {
+      productos: true,
+      // Tareas pendientes (livianas) para el distintivo de vencidas en la tarjeta.
+      tareasSeguimiento: { where: { done: false }, select: { id: true, fechaLimite: true } },
+    } }) : [];
+    const porId = new Map(rows.map(r => [r.id, r]));
+    const data = ids.map(id => porId.get(id)).filter(Boolean)
+      .map(l => ({ ...l, productos: l.productos.map(p => p.producto) }));
     res.json({ data, pagination: { page, pageSize, total } });
   } catch (e) { next(e); }
 });
@@ -88,7 +99,9 @@ router.get('/visitas-tecnicas', async (req, res, next) => {
         presupuestoAguaEstado: true,
         updatedAt: true,
       },
-      orderBy: { updatedAt: 'desc' },
+      // Sin ORDER BY a propósito: la fila trae el JSON del relevamiento (megas) y
+      // MySQL no puede ordenar filas anchas (1038 "Out of sort memory", 20/08).
+      // Se ordena abajo, en memoria, sobre la lista ya liviana.
     });
     // La lista viaja LIVIANA: el estado del relevamiento puede pesar megas
     // (fotos como data-URI). Acá va solo un resumen; el estado completo se
@@ -100,6 +113,7 @@ router.get('/visitas-tecnicas', async (req, res, next) => {
         criteria: presupuestoAguaEstado?.criteria?.metadata || null,
       },
     }));
+    leads.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)); // el orden que hacía MySQL
     res.json({ leads });
   } catch (e) { next(e); }
 });
