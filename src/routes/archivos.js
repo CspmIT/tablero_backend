@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { borrarBinario } from '../lib/almacenamiento.js';
 
 const router = Router();
 
@@ -88,10 +89,15 @@ router.delete('/:id', async (req, res, next) => {
     if (['multivac_doc', 'marketing'].includes(a.contexto) && !['manager', 'gerencial'].includes(req.colaborador?.tipo)) {
       throw new ApiError(403, 'forbidden', 'Solo manager/gerencial puede eliminar de la biblioteca compartida');
     }
-    // Sólo borramos la referencia en la base. El gateway de almacenamiento no
-    // expone (todavía) un endpoint de borrado; si más adelante lo agrega, el
-    // borrado del binario lo hace el frontend o se implementa aquí.
+    // Desde el 21/08 el gateway sí expone borrado, así que se va la referencia Y
+    // el binario. No hace falta chequear si otra fila comparte el objeto:
+    // Archivo.key es @unique, así que la referencia que se borra es la única que
+    // podía apuntar a esa key (si algún día deja de ser única, hay que contar las
+    // otras referencias antes de tocar MinIO).
     await prisma.archivo.delete({ where: { id: a.id } });
+    // Best effort: si el gateway no responde, la referencia ya se borró (es lo
+    // que el usuario pidió) y queda el aviso en el log para limpiar a mano.
+    await borrarBinario(a.key);
     res.status(204).end();
   } catch (e) { next(e); }
 });
