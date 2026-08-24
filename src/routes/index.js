@@ -109,7 +109,15 @@ router.delete('/colaboradores/:id', async (req, res, next) => {
 });
 
 // --- Recursos con CRUD genérico ---
-router.use('/colaboradores', crudRouter('colaborador', {
+// HARDENING 24/08 (auditoría por la llegada de Booster): la ESCRITURA de
+// colaboradores estaba abierta a cualquier usuario aprovisionado — editar un
+// colaborador permite cambiarle el tipo (escalada de permisos). La LECTURA
+// queda abierta a todo aprovisionado: la carga el DataContext al inicio para
+// TODOS (nombres/avatares, sin datos sensibles — los sueldos viven en costos)
+// y cerrarla rompería a los tercerizados de LV Redes en producción.
+router.use('/colaboradores', (req, res, next) => (
+  req.method === 'GET' ? next() : requireTipo('manager', 'gerencial')(req, res, next)
+), crudRouter('colaborador', {
   orderBy: { nombre: 'asc' },
   include: { periodos: { orderBy: { desde: 'asc' } } },
   transformInput: colaboradorTransform,
@@ -177,7 +185,9 @@ router.use('/clientes', crudRouter('cliente', {
 }));
 
 router.use('/guardias', guardiasRouter);
-  router.use('/import', importarRouter);
+// HARDENING 24/08: /import incluye POST /import/reset (BLANQUEA la base) y la
+// carga masiva — estaba abierto a cualquier usuario aprovisionado. Solo manager.
+router.use('/import', requireTipo('manager'), importarRouter);
 
 router.use('/francos', crudRouter('francoEspecial', {
   orderBy: { fecha: 'asc' }, allowed: ['colaboradorId','fecha','tipo','motivo'],
@@ -193,7 +203,10 @@ router.use('/feriados', crudRouter('feriado', {
 // --- Recursos a medida ---
 router.use('/leads', leadsRouter);
 router.use('/archivos', archivosRouter);
-router.use('/grilla', grillaRouter);
+// HARDENING 24/08: la grilla (jornadas del equipo) estaba abierta a cualquier
+// aprovisionado — lectura Y escritura. Interno solamente (los tercerizados de
+// campo no la usan; su vista es Campo, que va por /leads/visitas-tecnicas).
+router.use('/grilla', requireTipo('manager', 'gerencial', 'collaborator'), grillaRouter);
 // Asistente IA (Claude vía API; herramientas filtradas por rol adentro)
 router.use('/asistente', asistenteRouter);
 // Análisis: reportes agregados (permisos por tipo adentro del router)
@@ -222,6 +235,9 @@ router.use('/push', pushRouter);
 router.use('/notas', notasRouter);      // Mis notas semanales (ola 3)
 router.use('/multivac', multivacRouter); // Botones compartidos del terminal (ola 3)
 // Costos: solo rol gerencial/manager puede escribir; lectura para todos los habilitados
-router.use('/costos', costosRouter);
+// HARDENING 24/08: costos = sueldos y costos laborales, estaba abierto a
+// cualquier aprovisionado. Lectura manager/gerencial (el Dashboard los usa);
+// la escritura la restringe el propio router a manager.
+router.use('/costos', requireTipo('manager', 'gerencial'), costosRouter);
 
 export default router;

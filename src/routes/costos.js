@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { requireTipo } from '../middleware/auth.js';
 import { generarExcelCostos } from '../lib/exportCostosExcel.js';
 const router = Router();
 
@@ -36,7 +37,8 @@ router.get('/:mes', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.put('/:mes', async (req, res, next) => {
+// Escribir costos (sueldos): solo manager (hardening 24/08).
+router.put('/:mes', requireTipo('manager'), async (req, res, next) => {
   try {
     const payload = {
       costoLaboral: req.body.costoLaboral ?? null,
