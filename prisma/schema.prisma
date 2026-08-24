@@ -457,6 +457,7 @@ model Archivo {
   objetivo  Objetivo? @relation(fields: [objetivoId], references: [id], onDelete: SetNull)
   contexto  String?  // p.ej. "agua_foto", "pdf_presupuesto", "avatar", "objetivo_foto"
   createdAt DateTime @default(now())
+  postsMarketing MarketingPostArchivo[] // vínculos del calendario de Marketing (22/08)
 
   @@index([leadId])
   @@index([objetivoId])
@@ -629,8 +630,24 @@ model MarketingPost {
   creadoPorId Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  archivos    MarketingPostArchivo[]
 
   @@index([mes])
+}
+
+// Vínculo publicación ↔ archivo subido (22/08, pedido de Leonardo): al planificar
+// se eligen las piezas del contenido, y el archivo vinculado muestra el sello
+// «usado» (reutilizable — la meta es que no quede material sin usar). Cascade en
+// las dos puntas: borrar el post o el archivo limpia el vínculo solo.
+model MarketingPostArchivo {
+  id        Int           @id @default(autoincrement())
+  postId    Int
+  post      MarketingPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  archivoId Int
+  archivo   Archivo       @relation(fields: [archivoId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, archivoId])
+  @@index([archivoId])
 }
 
 model Deseo {

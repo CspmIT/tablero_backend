@@ -11,6 +11,7 @@ import { prisma } from '../lib/prisma.js';
 import { requireTipo } from '../middleware/auth.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { borrarBinario } from '../lib/almacenamiento.js';
+import { estadoSync, guardarConfigSync, sincronizarMesaAyuda, avisarEstadoMesa } from '../lib/mesaAyudaSync.js';
 
 const router = Router();
 router.use(requireTipo('manager', 'gerencial', 'collaborator'));
@@ -46,6 +47,31 @@ router.get('/', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// --- Conector Mesa de ayuda (24/08). Literales ANTES de /:id (lección 05/08). ---
+// Estado del conector (sin el token — jamás viaja al frontend).
+router.get('/sync-mesa/estado', async (req, res, next) => {
+  try { res.json(await estadoSync()); } catch (e) { next(e); }
+});
+// Configurar URL/token/área: solo gestores (el token es una credencial).
+router.put('/sync-mesa/config', async (req, res, next) => {
+  try {
+    if (!['manager', 'gerencial'].includes(req.colaborador?.tipo)) {
+      throw new ApiError(403, 'forbidden', 'La configuración del conector es de manager/gerencial');
+    }
+    await guardarConfigSync(req.body || {});
+    res.json(await estadoSync());
+  } catch (e) { next(e); }
+});
+// Sincronizar ahora (gestores): corre una pasada completa y devuelve el resumen.
+router.post('/sync-mesa', async (req, res, next) => {
+  try {
+    if (!['manager', 'gerencial'].includes(req.colaborador?.tipo)) {
+      throw new ApiError(403, 'forbidden', 'Sincronizar es de manager/gerencial');
+    }
+    res.json(await sincronizarMesaAyuda('manual'));
+  } catch (e) { next(e); }
+});
+
 // GET /tickets/:id — detalle con hilo de mensajes
 router.get('/:id', async (req, res, next) => {
   try {
@@ -74,7 +100,7 @@ router.post('/', async (req, res, next) => {
         sector: limpiar(b.sector),
         tipo: limpiar(b.tipo) || 'Incidente',
         prioridad: limpiar(b.prioridad) || 'Media',
-        area: 'Desarrollo', // fijo en carga manual (por API viaja el del sistema origen)
+        area: 'Oficina Virtual', // fijo en carga manual (24/08: el área en la Mesa será «Oficina Virtual»; por API viaja el del sistema origen)
         copiarA: String(b.copiarA || '').trim() || null,
         origen: b.origen === 'whatsapp' ? 'whatsapp' : 'manual',
         solicitante: limpiar(b.solicitante),
@@ -162,7 +188,20 @@ router.patch('/:id', async (req, res, next) => {
     }
 
     const actualizado = await prisma.ticket.update({ where: { id: t.id }, data });
-    res.json(actualizado);
+    // CICLO COMPLETO (24/08): si cambió el ESTADO de un ticket que vino de la
+    // Mesa de ayuda, se le avisa (el equipo no tiene usuarios resolutores allá
+    // — sin esto sus tickets quedarían eternamente abiertos en la Mesa). Best
+    // effort: el cambio local ya está hecho; si la Mesa no responde, va el
+    // aviso en la respuesta y el frontend lo muestra (la próxima sincronización
+    // podría volver a traer el estado viejo hasta que la Mesa se entere).
+    let mesaAviso;
+    if (data.estado !== undefined && t.origen === 'mesa_ayuda' && t.externalId) {
+      mesaAviso = await avisarEstadoMesa(t.externalId, {
+        estado: data.estado,
+        comentario: `Estado actualizado desde el Tablero Cooptech por ${req.colaborador?.nombre || 'el equipo'}`,
+      });
+    }
+    res.json(mesaAviso ? { ...actualizado, mesaAviso } : actualizado);
   } catch (e) { next(e); }
 });
 
