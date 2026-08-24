@@ -614,6 +614,25 @@ enum DeseoEstado {
   requiere_cambios
 }
 
+// Calendario de publicaciones de Marketing (ola 3, 21/08): el espacio de
+// trabajo del mes que Booster lleva en COOPTECH.xlsx (DÍA/FORMATO/CONTENIDO/
+// canal/copys), como calendario en vez de tabla. canal y formato son STRING
+// (lección enum 06/08: los catálogos que pueden crecer no se cierran en la base).
+model MarketingPost {
+  id          Int      @id @default(autoincrement())
+  mes         String   // 'YYYY-MM' (mismo mes lógico que las rutas plan/...)
+  dia         Int      // 1..31
+  canal       String   // feed | historia | linkedin | mailing (hoy)
+  formato     String?  // Historia | Carrusel | Reel | Placa | Mailing... (libre)
+  titulo      String
+  nota        String?  @db.Text // copy, pie de foto, comentario
+  creadoPorId Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([mes])
+}
+
 model Deseo {
   id             Int         @id @default(autoincrement())
   titulo         String
