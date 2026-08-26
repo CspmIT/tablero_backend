@@ -458,6 +458,7 @@ model Archivo {
   contexto  String?  // p.ej. "agua_foto", "pdf_presupuesto", "avatar", "objetivo_foto"
   createdAt DateTime @default(now())
   postsMarketing MarketingPostArchivo[] // vínculos del calendario de Marketing (22/08)
+  campaniasMarketing MarketingCampaniaArchivo[] // vínculos de campañas (26/08)
 
   @@index([leadId])
   @@index([objetivoId])
@@ -622,17 +623,52 @@ enum DeseoEstado {
 model MarketingPost {
   id          Int      @id @default(autoincrement())
   mes         String   // 'YYYY-MM' (mismo mes lógico que las rutas plan/...)
-  dia         Int      // 1..31
+  // 26/08 (bandeja de Ideas): dia NULL = IDEA sin fecha; al «programarla» se le
+  // asigna el día y pasa al calendario — mismo registro, dos momentos.
+  dia         Int?     // 1..31 | null = idea
   canal       String   // feed | historia | linkedin | mailing (hoy)
   formato     String?  // Historia | Carrusel | Reel | Placa | Mailing... (libre)
   titulo      String
   nota        String?  @db.Text // copy, pie de foto, comentario
+  aprobada    Boolean  @default(false) // tilde de aprobación (Booster propone, Leonardo aprueba)
   creadoPorId Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   archivos    MarketingPostArchivo[]
 
   @@index([mes])
+}
+
+// Campañas publicitarias (26/08, documentos reales CAMPAÑA PUBLICITARIA de
+// Booster): estrategia Meta Ads con segmentación/formulario/presupuesto.
+// Nace PROPUESTA sin fechas; al aprobarse se define el PERÍODO (puede cruzar
+// meses: 20/08 → 10/09) y se dibuja como línea delgada atravesando los días
+// del calendario — a diferencia de una publicación, la campaña REPITE el
+// mismo contenido todos los días del rango.
+model MarketingCampania {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  producto    String?  // Reconecta | +AGUA | CoopCloud | CoopTech... (libre)
+  presupuesto String?  // texto: "$8.000-10.000/día × 20 días ≈ $160.000 + imp."
+  desarrollo  String?  @db.Text // estrategia, segmentación, formulario (libre)
+  aprobada    Boolean  @default(false)
+  desde       DateTime? @db.Date // período definido al aprobar
+  hasta       DateTime? @db.Date
+  creadoPorId Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  archivos    MarketingCampaniaArchivo[]
+}
+
+model MarketingCampaniaArchivo {
+  id         Int               @id @default(autoincrement())
+  campaniaId Int
+  campania   MarketingCampania @relation(fields: [campaniaId], references: [id], onDelete: Cascade)
+  archivoId  Int
+  archivo    Archivo           @relation(fields: [archivoId], references: [id], onDelete: Cascade)
+
+  @@unique([campaniaId, archivoId])
+  @@index([archivoId])
 }
 
 // Vínculo publicación ↔ archivo subido (22/08, pedido de Leonardo): al planificar
