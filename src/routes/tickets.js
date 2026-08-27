@@ -196,9 +196,14 @@ router.patch('/:id', async (req, res, next) => {
     // podría volver a traer el estado viejo hasta que la Mesa se entere).
     let mesaAviso;
     if (data.estado !== undefined && t.origen === 'mesa_ayuda' && t.externalId) {
+      // ACUERDO con Guillermo (27/08, decisión de Leonardo): a la Mesa viaja
+      // «resuelto» aunque acá se cierre — solo un ticket Resuelto se puede
+      // REABRIR allá, y ese circuito es lo que hace útil la integración.
+      // «cerrado» local queda como estado interno del tablero.
+      const estadoMesa = data.estado === 'cerrado' ? 'resuelto' : data.estado;
       mesaAviso = await avisarEstadoMesa(t.externalId, {
-        estado: data.estado,
-        comentario: `Estado actualizado desde el Tablero Cooptech por ${req.colaborador?.nombre || 'el equipo'}`,
+        estado: estadoMesa,
+        comentario: `Estado actualizado desde el Tablero Cooptech por ${req.colaborador?.nombre || 'el equipo'}${data.estado === 'cerrado' ? ' (cierre interno del tablero — el solicitante conserva la reapertura)' : ''}`,
       });
     }
     res.json(mesaAviso ? { ...actualizado, mesaAviso } : actualizado);
