@@ -21,6 +21,7 @@ import integracionesRouter from './integraciones.js';
 import deseosRouter from './deseos.js';
 import ticketsRouter from './tickets.js';
 import marketingPostsRouter from './marketingPosts.js';
+import contactosRouter from './contactos.js';
 import criteriaRouter from './criteria.js';
 import permisosRouter from './permisos.js';
 import reunionesRouter from './reuniones.js';
@@ -224,6 +225,7 @@ router.use('/deseos', deseosRouter);
 // Inbox → Tickets: mini sistema espejo de la Mesa de ayuda (20/08)
 router.use('/tickets', ticketsRouter);
 router.use('/marketing-posts', marketingPostsRouter); // Calendario de Marketing (ola 3)
+router.use('/contactos', contactosRouter); // Agenda de contactos externos (26/08)
 // CriterIA: composición del plan propuesta +Agua (caso C)
 router.use('/criteria', criteriaRouter);
 // Permisos de UI por usuario (panel de administración de vistas)

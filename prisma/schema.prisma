@@ -639,6 +639,24 @@ model MarketingPost {
   @@index([mes])
 }
 
+// Agenda de contactos externos (26/08, pedido de Leonardo): gente ajena a la
+// organización (del ámbito, o que entró por el CRM) para invitar a reuniones
+// sin tipear el mail cada vez. Esta tabla guarda SOLO los creados a mano; los
+// contactos de los leads del CRM se derivan EN VIVO en la ruta (sin duplicar:
+// si el lead cambia el mail, el contacto lo refleja solo).
+model Contacto {
+  id           Int      @id @default(autoincrement())
+  nombre       String
+  email        String?
+  telefono     String?
+  organizacion String?
+  cargo        String?
+  notas        String?  @db.Text
+  creadoPorId  Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 // Campañas publicitarias (26/08, documentos reales CAMPAÑA PUBLICITARIA de
 // Booster): estrategia Meta Ads con segmentación/formulario/presupuesto.
 // Nace PROPUESTA sin fechas; al aprobarse se define el PERÍODO (puede cruzar
