@@ -193,7 +193,7 @@ router.get('/rotacion', async (req, res, next) => {
     // Solo internos del área (la rotación de gerenciales/externos no es
     // rotación del equipo). Inactivos incluidos: sus bajas SON la rotación.
     const [colaboradores, periodos] = await Promise.all([
-      prisma.colaborador.findMany({ where: { tipo: { in: ['manager', 'collaborator'] } }, select: { id: true, nombre: true } }),
+      prisma.colaborador.findMany({ where: { tipo: { in: ['manager', 'collaborator'] } }, select: { id: true, nombre: true, activo: true } }),
       prisma.colaboradorPeriodo.findMany(),
     ]);
     const idsInternos = new Set(colaboradores.map(c => c.id));
@@ -209,7 +209,12 @@ router.get('/rotacion', async (req, res, next) => {
       let activos = 0, altas = 0, bajas = 0;
       for (const c of colaboradores) {
         const ps = porColab[c.id];
-        if (!ps) { activos++; continue; } // sin períodos: activo siempre, sin eventos
+        // Sin períodos cargados (26/08, reporte de Leonardo: el gráfico daba 15-16
+        // con un equipo de 7): un INACTIVO sin períodos contaba como activo para
+        // siempre. Regla nueva: sin períodos cuenta solo si está activo HOY; el
+        // inactivo sin períodos no cuenta (su fecha de baja es desconocida — para
+        // que aparezca en el mes real, cargarle el período con su hasta).
+        if (!ps) { if (c.activo !== false) activos++; continue; }
         let activoEsteMes = false;
         for (const p of ps) {
           const d = new Date(p.desde), h = p.hasta ? new Date(p.hasta) : null;
