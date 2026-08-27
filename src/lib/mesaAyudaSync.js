@@ -85,6 +85,10 @@ export async function sincronizarMesaAyuda(disparo = 'manual') {
       for (const t of tickets) {
         const externalId = texto(t.id, 100);
         if (!externalId || !texto(t.titulo)) continue; // sin id o título no hay upsert sano
+        // ANTI-ECO (27/08, acuerdo con Guillermo): si el último cambio de estado
+        // lo hizo el propio tablero (nuestro PATCH), NO pisamos el estado local —
+        // los dos sistemas dejarían de avisarse de lo mismo en círculos.
+        const esEco = /tablero/i.test(String(t.ultimoCambioPor || ''));
         const campos = {
           titulo: texto(t.titulo) || '(sin título)',
           descripcion: String(t.descripcion || '').trim() || '(sin descripción)',
@@ -94,22 +98,39 @@ export async function sincronizarMesaAyuda(disparo = 'manual') {
           prioridad: texto(t.prioridad, 60) || 'Media',
           area: texto(t.area, 100) || area,
           copiarA: Array.isArray(t.copiarA) ? t.copiarA.join(', ') : (texto(t.copiarA, 500)),
-          estado: mapEstado(t.estado),
           origen: 'mesa_ayuda',
           ocurridoAt: fecha(t.createdAt),
-          resueltoAt: fecha(t.resueltoAt),
-          cerradoAt: fecha(t.cerradoAt),
+          ...(esEco ? {} : {
+            estado: mapEstado(t.estado),
+            resueltoAt: fecha(t.resueltoAt),
+            cerradoAt: fecha(t.cerradoAt),
+          }),
         };
         const existente = await prisma.ticket.findUnique({ where: { externalId }, select: { id: true } });
+        let ticketId;
         if (existente) {
           // La clasificación OV, la categoría a/b/c, el vínculo a grilla y la
           // asignación son NUESTROS — el upsert no los toca jamás.
           await prisma.ticket.update({ where: { externalId }, data: campos });
+          ticketId = existente.id;
           resumen.actualizados += 1;
         } else {
-          await prisma.ticket.create({ data: { ...campos, externalId } });
+          const creado = await prisma.ticket.create({ data: { ...campos, estado: campos.estado || mapEstado(t.estado), externalId } });
+          ticketId = creado.id;
           resumen.creados += 1;
         }
+        // REAPERTURA (27/08 — «la novedad más importante que existe»: el equipo
+        // creía que estaba terminado y el solicitante lo reabrió). Entra como
+        // MENSAJE en el hilo, numerado para ser idempotente (no se duplica).
+        const nReap = Number(t.reaperturas || 0);
+        if (nReap > 0) {
+          const textoReap = `⚠ Reabierto por el solicitante (reapertura #${nReap})${t.motivoReapertura ? `: ${String(t.motivoReapertura).trim()}` : ''}`;
+          const ya = await prisma.ticketMensaje.findFirst({ where: { ticketId, texto: textoReap }, select: { id: true } });
+          if (!ya) await prisma.ticketMensaje.create({ data: { ticketId, autor: 'Mesa de ayuda', texto: textoReap } });
+        }
+        // AVISO DE BAJA (acuerdo 3): el ticket cambió de área y deja de ser
+        // nuestro — queda reflejado con su área nueva y no se actualiza más.
+        if (t.baja) { /* el área nueva ya viajó en campos.area; nada más que hacer */ }
         const u = texto(t.updatedAt, 40);
         if (u && (!mayorUpdatedAt || u > mayorUpdatedAt)) mayorUpdatedAt = u;
       }
