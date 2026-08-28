@@ -834,3 +834,48 @@ model PushSuscripcion {
   @@unique([endpoint])
   @@index([colaboradorId])
 }
+
+// Laboratorio (28/08): funciones IoT migradas desde la Oficina Virtual.
+// Servidores InfluxDB / MQTT del área. `tipo` es string ('influx' | 'mqtt') —
+// regla del registro: strings para catálogos, no enums. La CONTRASEÑA viaja
+// al frontend (decisión de Leonardo 28/08: herramienta de administración
+// interna, con 👁 para revelar) pero SOLO a quienes ven el módulo (guard
+// interno en la ruta). `buckets` es una lista JSON de strings (solo influx).
+model LabServidor {
+  id         Int      @id @default(autoincrement())
+  tipo       String   @db.VarChar(20) // 'influx' | 'mqtt'
+  nombre     String
+  url        String   @db.VarChar(500)
+  usuario    String?
+  contrasena String?  @db.VarChar(500)
+  puerto     Int?
+  buckets    Json?    // ["bucket1", "bucket2"] — solo servidores influx
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// Cola de solicitudes de borrado de datos en InfluxDB. Esta ola guarda y
+// audita; el PROCESO EJECUTOR de los colaboradores toma las 'pendiente',
+// corre la delete query contra Influx y reporta por PATCH (ejecutado/error
+// + resultado). Los nombres de servidor van como snapshot para que el
+// historial se lea aunque el servidor se borre después.
+model LabBorrado {
+  id                   Int       @id @default(autoincrement())
+  servidorMqttId       Int?
+  servidorNombre       String?   // snapshot del servidor MQTT elegido
+  servidorInfluxId     Int?      // dueño del bucket elegido
+  servidorInfluxNombre String?
+  bucket               String
+  topico               String    @db.VarChar(500)
+  desde                DateTime
+  hasta                DateTime
+  estado               String    @default("pendiente") @db.VarChar(20) // pendiente | ejecutado | error | cancelado
+  resultado            String?   @db.Text // detalle que deja el proceso ejecutor
+  solicitadoPorId      Int?
+  solicitadoPor        String?   // nombre snapshot (auditoría legible)
+  ejecutadoAt          DateTime?
+  createdAt            DateTime  @default(now())
+
+  @@index([estado])
+  @@index([createdAt])
+}
