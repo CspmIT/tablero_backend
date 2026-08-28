@@ -22,6 +22,7 @@ import deseosRouter from './deseos.js';
 import ticketsRouter from './tickets.js';
 import marketingPostsRouter from './marketingPosts.js';
 import contactosRouter from './contactos.js';
+import laboratorioRouter from './laboratorio.js';
 import criteriaRouter from './criteria.js';
 import permisosRouter from './permisos.js';
 import reunionesRouter from './reuniones.js';
@@ -226,6 +227,9 @@ router.use('/deseos', deseosRouter);
 router.use('/tickets', ticketsRouter);
 router.use('/marketing-posts', marketingPostsRouter); // Calendario de Marketing (ola 3)
 router.use('/contactos', contactosRouter); // Agenda de contactos externos (26/08)
+// Laboratorio (28/08): servidores InfluxDB/MQTT + cola de borrados (migrado
+// desde la Oficina Virtual). Guard interno adentro del router.
+router.use('/laboratorio', laboratorioRouter);
 // CriterIA: composición del plan propuesta +Agua (caso C)
 router.use('/criteria', criteriaRouter);
 // Permisos de UI por usuario (panel de administración de vistas)

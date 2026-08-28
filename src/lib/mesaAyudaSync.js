@@ -49,7 +49,9 @@ export async function estadoSync() {
 }
 
 export async function guardarConfigSync({ url, token, area }) {
-  if (url !== undefined) await setConfig('mesa_ayuda_url', String(url || '').trim().replace(/\/+$/, ''));
+  // Tolerancia (28/08): Guillermo pasó la URL COMPLETA del endpoint — si pegan
+  // «…/api/export/tickets», acá se guarda solo la base.
+  if (url !== undefined) await setConfig('mesa_ayuda_url', String(url || '').trim().replace(/\/+$/, '').replace(/\/api\/export\/tickets$/i, ''));
   if (token !== undefined && String(token).trim()) await setConfig('mesa_ayuda_token', String(token).trim());
   if (area !== undefined) await setConfig('mesa_ayuda_area', String(area || '').trim() || 'Oficina Virtual');
 }
@@ -66,13 +68,21 @@ export async function sincronizarMesaAyuda(disparo = 'manual') {
     const area = (await getConfig('mesa_ayuda_area')) || 'Oficina Virtual';
     if (!url || !token) { resumen.error = 'Falta configurar URL y token de la Mesa de ayuda'; return resumen; }
 
-    let since = (await getConfig('mesa_ayuda_since')) || '';
-    let mayorUpdatedAt = since;
+    // CURSOR de Guillermo (28/08, API real): la respuesta trae `next` como
+    // "<updatedAt>|<id>" (desempate por id — su hallazgo 4) y se devuelve como
+    // ?cursor=; si viaja cursor, since se ignora. Compat: un valor guardado
+    // viejo SIN «|» es un ISO y viaja como since; desde ahí persistimos cursor.
+    const guardado = (await getConfig('mesa_ayuda_since')) || '';
+    let cursor = guardado.includes('|') ? guardado : null;
+    let since = cursor ? '' : guardado;
+    let ultimoCursor = cursor; // el que persistimos al final
     let next = null;
 
     do {
       const qs = new URLSearchParams({ area, limit: '100' });
-      if (next) qs.set('since', next); else if (since) qs.set('since', since);
+      if (next) qs.set('cursor', next);
+      else if (cursor) qs.set('cursor', cursor);
+      else if (since) qs.set('since', since);
       const res = await fetch(`${url}/api/export/tickets?${qs}`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
@@ -131,15 +141,18 @@ export async function sincronizarMesaAyuda(disparo = 'manual') {
         // AVISO DE BAJA (acuerdo 3): el ticket cambió de área y deja de ser
         // nuestro — queda reflejado con su área nueva y no se actualiza más.
         if (t.baja) { /* el área nueva ya viajó en campos.area; nada más que hacer */ }
+        // Cursor propio por si la última página viene con next=null: el último
+        // ticket procesado define "<updatedAt>|<id>" para la próxima corrida.
         const u = texto(t.updatedAt, 40);
-        if (u && (!mayorUpdatedAt || u > mayorUpdatedAt)) mayorUpdatedAt = u;
+        if (u) ultimoCursor = `${u}|${externalId}`;
       }
-      next = texto(data?.next, 60);
+      next = texto(data?.next, 80);
+      if (next) ultimoCursor = next; // el del servidor manda (ya trae el desempate)
     } while (next && resumen.paginas < 50); // tope defensivo de páginas
 
     if (!resumen.error) {
       resumen.ok = true;
-      if (mayorUpdatedAt && mayorUpdatedAt !== since) await setConfig('mesa_ayuda_since', mayorUpdatedAt);
+      if (ultimoCursor && ultimoCursor !== guardado) await setConfig('mesa_ayuda_since', ultimoCursor);
     }
   } catch (e) {
     resumen.error = e.message || 'No se pudo hablar con la Mesa de ayuda';
