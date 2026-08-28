@@ -21,7 +21,10 @@ router.get('/', async (req, res, next) => {
       prisma.contacto.findMany({ orderBy: { nombre: 'asc' } }),
       prisma.lead.findMany({
         where: { OR: [{ email: { not: null } }, { telefono: { not: null } }] },
-        select: { id: true, organizacion: true, contactoNombre: true, email: true, telefono: true, cargo: true, etapa: true },
+        select: {
+          id: true, organizacion: true, contactoNombre: true, email: true, telefono: true, cargo: true, etapa: true,
+          productos: { select: { producto: true } }, // «proyecto del CRM» en la tabla (27/08)
+        },
       }),
     ]);
     const contactos = [
@@ -33,6 +36,7 @@ router.get('/', async (req, res, next) => {
           nombre: l.contactoNombre || l.organizacion || `Lead #${l.id}`,
           email: l.email || null, telefono: l.telefono || null,
           organizacion: l.organizacion || null, cargo: l.cargo || null, notas: null,
+          productos: (l.productos || []).map((p) => p.producto), etapa: l.etapa || null,
         })),
     ];
     res.json({ contactos });
