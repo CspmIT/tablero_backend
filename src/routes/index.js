@@ -208,7 +208,16 @@ router.use('/archivos', archivosRouter);
 // HARDENING 24/08: la grilla (jornadas del equipo) estaba abierta a cualquier
 // aprovisionado — lectura Y escritura. Interno solamente (los tercerizados de
 // campo no la usan; su vista es Campo, que va por /leads/visitas-tecnicas).
-router.use('/grilla', requireTipo('manager', 'gerencial', 'collaborator'), grillaRouter);
+// 28/08 (caso Mirko, RRHH): los usuarios EXTERNO con la solapa Grilla otorgada
+// necesitan LEERLA (horarios de ingreso). El hardening 24/08 los dejó afuera y
+// veían todo en blanco (403 silencioso). Lectura incluye externo; la escritura
+// sigue igual que antes (interno; /tipica y /vacaciones ya exigen manager
+// adentro del router). El frontend acompaña: grilla de solo lectura para externo.
+router.use('/grilla', (req, res, next) => (
+  req.method === 'GET'
+    ? requireTipo('manager', 'gerencial', 'collaborator', 'externo')(req, res, next)
+    : requireTipo('manager', 'gerencial', 'collaborator')(req, res, next)
+), grillaRouter);
 // Asistente IA (Claude vía API; herramientas filtradas por rol adentro)
 router.use('/asistente', asistenteRouter);
 // Análisis: reportes agregados (permisos por tipo adentro del router)
