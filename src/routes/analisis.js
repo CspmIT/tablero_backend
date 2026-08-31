@@ -178,8 +178,14 @@ router.get('/tags-combo', async (req, res, next) => {
 
 // ---------------------------------------------------------------------------
 // ROTACIÓN DE PERSONAL (26/07) — activos, altas y bajas por mes, desde los
-// períodos de vigencia (ColaboradorPeriodo). Colaborador sin períodos = activo
-// en todo el rango (histórico previo a la carga de períodos, sin eventos).
+// períodos de vigencia (ColaboradorPeriodo).
+// 31/08 (reporte de Leonardo): los ex-colaboradores inactivados definitivamente,
+// sin períodos cargados, no contaban en NINGÚN mes — desaparecían de su propia
+// historia. Regla nueva: si no hay período, manda la ficha del Equipo
+// (fechaIngreso → fechaSalida), que también genera el alta y la baja del mes.
+// El que no tiene ni período ni fecha de salida queda fuera del cálculo (su baja
+// es desconocida) pero se informa por nombre en `sinDatos` para que el gráfico
+// lo muestre en vez de esconderlo.
 // GET /analisis/rotacion?desde=YYYY-MM&hasta=YYYY-MM
 router.get('/rotacion', async (req, res, next) => {
   try {
@@ -193,12 +199,24 @@ router.get('/rotacion', async (req, res, next) => {
     // Solo internos del área (la rotación de gerenciales/externos no es
     // rotación del equipo). Inactivos incluidos: sus bajas SON la rotación.
     const [colaboradores, periodos] = await Promise.all([
-      prisma.colaborador.findMany({ where: { tipo: { in: ['manager', 'collaborator'] } }, select: { id: true, nombre: true, activo: true } }),
+      prisma.colaborador.findMany({ where: { tipo: { in: ['manager', 'collaborator'] } }, select: { id: true, nombre: true, activo: true, fechaIngreso: true, fechaSalida: true } }),
       prisma.colaboradorPeriodo.findMany(),
     ]);
     const idsInternos = new Set(colaboradores.map(c => c.id));
     const porColab = {};
     for (const p of periodos) { if (idsInternos.has(p.colaboradorId)) (porColab[p.colaboradorId] ||= []).push(p); }
+
+    // Sin períodos cargados: la ficha del Equipo hace de período (ingreso → salida).
+    // Si tampoco hay con qué acotarlo, se informa aparte en vez de contarlo mal.
+    const sinDatos = [];
+    for (const c of colaboradores) {
+      if (porColab[c.id]) continue;
+      if (c.fechaIngreso || c.fechaSalida) {
+        porColab[c.id] = [{ desde: c.fechaIngreso || c.fechaSalida, hasta: c.fechaSalida || null, deFicha: true }];
+      } else if (c.activo === false) {
+        sinDatos.push(c.nombre);
+      }
+    }
 
     const meses = [];
     let [y, m] = desde.split('-').map(Number);
@@ -209,11 +227,9 @@ router.get('/rotacion', async (req, res, next) => {
       let activos = 0, altas = 0, bajas = 0;
       for (const c of colaboradores) {
         const ps = porColab[c.id];
-        // Sin períodos cargados (26/08, reporte de Leonardo: el gráfico daba 15-16
-        // con un equipo de 7): un INACTIVO sin períodos contaba como activo para
-        // siempre. Regla nueva: sin períodos cuenta solo si está activo HOY; el
-        // inactivo sin períodos no cuenta (su fecha de baja es desconocida — para
-        // que aparezca en el mes real, cargarle el período con su hasta).
+        // Sin período ni ficha (26/08, reporte de Leonardo: el gráfico daba 15-16
+        // con un equipo de 7): un INACTIVO así contaba como activo para siempre.
+        // Cuenta solo si está activo HOY; el inactivo va a `sinDatos`.
         if (!ps) { if (c.activo !== false) activos++; continue; }
         let activoEsteMes = false;
         for (const p of ps) {
@@ -228,7 +244,7 @@ router.get('/rotacion', async (req, res, next) => {
       m++; if (m > 12) { m = 1; y++; }
     }
     // Promedio anual de activos del último año calendario completo del rango.
-    res.json({ desde, hasta, meses });
+    res.json({ desde, hasta, meses, sinDatos });
   } catch (e) { next(e); }
 });
 
