@@ -178,14 +178,8 @@ router.get('/tags-combo', async (req, res, next) => {
 
 // ---------------------------------------------------------------------------
 // ROTACIÓN DE PERSONAL (26/07) — activos, altas y bajas por mes, desde los
-// períodos de vigencia (ColaboradorPeriodo).
-// 31/08 (reporte de Leonardo): los ex-colaboradores inactivados definitivamente,
-// sin períodos cargados, no contaban en NINGÚN mes — desaparecían de su propia
-// historia. Regla nueva: si no hay período, manda la ficha del Equipo
-// (fechaIngreso → fechaSalida), que también genera el alta y la baja del mes.
-// El que no tiene ni período ni fecha de salida queda fuera del cálculo (su baja
-// es desconocida) pero se informa por nombre en `sinDatos` para que el gráfico
-// lo muestre en vez de esconderlo.
+// períodos de vigencia (ColaboradorPeriodo). Colaborador sin períodos = activo
+// en todo el rango (histórico previo a la carga de períodos, sin eventos).
 // GET /analisis/rotacion?desde=YYYY-MM&hasta=YYYY-MM
 router.get('/rotacion', async (req, res, next) => {
   try {
@@ -206,16 +200,34 @@ router.get('/rotacion', async (req, res, next) => {
     const porColab = {};
     for (const p of periodos) { if (idsInternos.has(p.colaboradorId)) (porColab[p.colaboradorId] ||= []).push(p); }
 
-    // Sin períodos cargados: la ficha del Equipo hace de período (ingreso → salida).
-    // Si tampoco hay con qué acotarlo, se informa aparte en vez de contarlo mal.
+    // TRAMOS por colaborador (28/08, reporte de Leonardo: los inactivados
+    // DEFINITIVOS sin períodos no aparecían en los meses en que SÍ estuvieron —
+    // julio 2025 daba 7 en vez de 10). La regla del 26/08 los excluía porque su
+    // baja era "desconocida"… pero la FICHA del Equipo la tiene: la inactivación
+    // exige fechaSalida. Regla nueva, en orden:
+    //   1) Con períodos cargados → se usan tal cual (mandan siempre).
+    //   2) Sin períodos → tramo implícito fechaIngreso→fechaSalida de la ficha.
+    //      · activo hoy: el flag manda — cuenta hasta hoy (h=null) desde su
+    //        ingreso (o desde siempre si no tiene fecha: histórico previo).
+    //      · inactivo con fechaSalida: cuenta hasta esa fecha (y suma la baja).
+    //   3) Inactivo SIN fechaSalida ni períodos: imposible ubicar la baja →
+    //      queda afuera y se INFORMA en `sinDatos` (el gráfico lo dice, no lo
+    //      esconde — cargarle la fecha de salida en Equipo lo suma a sus meses).
+    // Las altas/bajas implícitas solo se cuentan si la fecha existe.
+    const tramosDe = (c) => {
+      const ps = porColab[c.id];
+      if (ps?.length) return ps.map((p) => ({ d: new Date(p.desde), h: p.hasta ? new Date(p.hasta) : null }));
+      const ing = c.fechaIngreso ? new Date(c.fechaIngreso) : null;
+      if (c.activo !== false) return [{ d: ing, h: null }];
+      if (!c.fechaSalida) return null; // sin datos para ubicarlo en el tiempo
+      return [{ d: ing, h: new Date(c.fechaSalida) }];
+    };
     const sinDatos = [];
+    const tramosPorColab = new Map();
     for (const c of colaboradores) {
-      if (porColab[c.id]) continue;
-      if (c.fechaIngreso || c.fechaSalida) {
-        porColab[c.id] = [{ desde: c.fechaIngreso || c.fechaSalida, hasta: c.fechaSalida || null, deFicha: true }];
-      } else if (c.activo === false) {
-        sinDatos.push(c.nombre);
-      }
+      const t = tramosDe(c);
+      if (t) tramosPorColab.set(c.id, t);
+      else sinDatos.push(c.nombre);
     }
 
     const meses = [];
@@ -226,24 +238,20 @@ router.get('/rotacion', async (req, res, next) => {
       const fin = new Date(Date.UTC(y, m, 0));
       let activos = 0, altas = 0, bajas = 0;
       for (const c of colaboradores) {
-        const ps = porColab[c.id];
-        // Sin período ni ficha (26/08, reporte de Leonardo: el gráfico daba 15-16
-        // con un equipo de 7): un INACTIVO así contaba como activo para siempre.
-        // Cuenta solo si está activo HOY; el inactivo va a `sinDatos`.
-        if (!ps) { if (c.activo !== false) activos++; continue; }
+        const ts = tramosPorColab.get(c.id);
+        if (!ts) continue;
         let activoEsteMes = false;
-        for (const p of ps) {
-          const d = new Date(p.desde), h = p.hasta ? new Date(p.hasta) : null;
-          if (d <= fin && (!h || h >= ini)) activoEsteMes = true;
-          if (d >= ini && d <= fin) altas++;
-          if (h && h >= ini && h <= fin) bajas++;
+        for (const p of ts) {
+          // d=null → estaba desde antes del rango (no cuenta alta); h=null → sigue.
+          if ((!p.d || p.d <= fin) && (!p.h || p.h >= ini)) activoEsteMes = true;
+          if (p.d && p.d >= ini && p.d <= fin) altas++;
+          if (p.h && p.h >= ini && p.h <= fin) bajas++;
         }
         if (activoEsteMes) activos++;
       }
       meses.push({ mes: mesKey, activos, altas, bajas });
       m++; if (m > 12) { m = 1; y++; }
     }
-    // Promedio anual de activos del último año calendario completo del rango.
     res.json({ desde, hasta, meses, sinDatos });
   } catch (e) { next(e); }
 });

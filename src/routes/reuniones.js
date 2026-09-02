@@ -147,6 +147,7 @@ router.post('/', async (req, res, next) => {
       });
       await agregarItemsGrilla(tx, ids, fechaD, {
         text: textoItemReunion(r), wip: false, reunionId: r.id,
+        hora: horaInicio, // 31/08: hora de inicio → orden cronológico en las vistas
         horas: horasEntre(horaInicio, horaFin), // la duración completa las horas de la tarea
         ...(tags.length ? { tags } : {}),
         ...(graphInfo?.joinUrl ? { link: graphInfo.joinUrl } : {}),
@@ -235,6 +236,7 @@ router.patch('/:id', async (req, res, next) => {
       });
       await agregarItemsGrilla(tx, idsNuevos, fechaNueva, {
         text: textoItemReunion(nuevo), wip: false, reunionId: nuevo.id,
+        hora: horaInicio,
         horas: horasEntre(horaInicio, horaFin),
         ...(tags.length ? { tags } : {}),
         ...(nuevo.joinUrl ? { link: nuevo.joinUrl } : {}),
@@ -286,6 +288,7 @@ router.post('/:id/respuesta', async (req, res, next) => {
         // Aceptar/provisional restituye el ítem si antes había rechazado.
         await agregarItemsGrilla(tx, [yo], fechaD, {
           text: textoItemReunion(r), wip: false, reunionId: r.id,
+          hora: r.horaInicio,
           horas: horasEntre(r.horaInicio, r.horaFin),
           ...(Array.isArray(r.tags) && r.tags.length ? { tags: r.tags } : {}),
           ...(r.joinUrl ? { link: r.joinUrl } : {}),
@@ -332,9 +335,22 @@ router.post('/sync-outlook', async (req, res, next) => {
     // Dedup histórico: reuniones del tablero previas a la categoría marcadora.
     const dD = new Date(desde + 'T00:00:00Z'), hD = new Date(hasta + 'T00:00:00Z');
     const nuestras = await prisma.reunion.findMany({
-      where: { estado: 'activa', fecha: { gte: dD, lte: hD } }, select: { titulo: true, fecha: true },
+      where: { estado: 'activa', fecha: { gte: dD, lte: hD } }, select: { id: true, titulo: true, fecha: true, horaInicio: true },
     });
     const clavesNuestras = new Set(nuestras.map(r => `${r.fecha.toISOString().slice(0, 10)}|${r.titulo.trim().toLowerCase()}`));
+    // Backfill de `hora` (31/08): los ítems de reunión anteriores a este campo
+    // la reciben acá, de paso, para que el orden cronológico también los tome.
+    const horaReunion = new Map(nuestras.map(r => [r.id, r.horaInicio]));
+    // 31/08 (captura de Leonardo: reunión del tablero duplicada como espejo):
+    // la categoría "Tablero Cooptech" vive solo en la casilla del ORGANIZADOR —
+    // la copia del evento en el buzón del invitado NO la trae (Graph: categorías
+    // por buzón). Y el dedup por clave comparaba el TÍTULO pelado contra el
+    // asunto de Outlook, que acá nace con prefijo («Reunión Cooptech · X» /
+    // «Videollamada Cooptech · Y») ⇒ nunca coincidía. Doble arreglo: (a) todo
+    // asunto con prefijo del tablero se saltea directo (solo nosotros los
+    // generamos); (b) la clave se compara también con el prefijo recortado.
+    const PREFIJO_TABLERO = /^(reuni[oó]n|videollamada)\s+cooptech\s*·\s*/i;
+    const sinPrefijo = (s) => String(s || '').trim().replace(PREFIJO_TABLERO, '').trim().toLowerCase();
 
     const deseados = new Map(); // uid -> { fecha, item }
     let salteados = 0;
@@ -344,19 +360,25 @@ router.post('/sync-outlook', async (req, res, next) => {
       if (!uid || !fechaEv) continue;
       const link = ev.onlineMeetingUrl || ev.onlineMeeting?.joinUrl || null;
       const otros = Array.isArray(ev.attendees) ? ev.attendees.length : 0;
+      const asunto = String(ev.subject || '').trim();
       const filtrar = ev.isCancelled || ev.isAllDay
         || (ev.sensitivity && ev.sensitivity !== 'normal')
         || (Array.isArray(ev.categories) && ev.categories.includes('Tablero Cooptech'))
+        || PREFIJO_TABLERO.test(asunto) // nacido en el tablero: la app ya puso su ítem
         || ev.responseStatus?.response === 'declined'
         || (!link && otros === 0)
-        || clavesNuestras.has(`${fechaEv}|${String(ev.subject || '').trim().toLowerCase()}`);
+        || clavesNuestras.has(`${fechaEv}|${asunto.toLowerCase()}`)
+        || clavesNuestras.has(`${fechaEv}|${sinPrefijo(asunto)}`);
       if (filtrar) { salteados++; continue; }
-      const h = horasEntre(String(ev.start?.dateTime || '').slice(11, 16), String(ev.end?.dateTime || '').slice(11, 16));
+      const horaEv = String(ev.start?.dateTime || '').slice(11, 16);
+      const h = horasEntre(horaEv, String(ev.end?.dateTime || '').slice(11, 16));
       deseados.set(uid, {
         fecha: fechaEv,
         item: {
-          text: `Reunión (Outlook): ${String(ev.subject || 'Sin asunto').trim()}`.slice(0, 300),
+          text: `Reunión (Outlook): ${asunto || 'Sin asunto'}`.slice(0, 300),
           wip: false, outlookUid: uid,
+          // hora de inicio (31/08): permite el orden cronológico en las vistas.
+          ...(/^\d{2}:\d{2}$/.test(horaEv) ? { hora: horaEv } : {}),
           ...(h ? { horas: h } : {}),
           ...(link ? { link } : {}),
         },
@@ -376,7 +398,14 @@ router.post('/sync-outlook', async (req, res, next) => {
         let cambio = false;
         const resultado = [];
         for (const it of items) {
-          if (!it?.outlookUid) { resultado.push(it); continue; }
+          if (!it?.outlookUid) {
+            // Ítem de reunión del tablero sin hora → backfill desde la Reunión.
+            if (it?.reunionId && !it.hora && horaReunion.get(it.reunionId)) {
+              resultado.push({ ...it, hora: horaReunion.get(it.reunionId) });
+              cambio = true;
+            } else resultado.push(it);
+            continue;
+          }
           const d = deseados.get(it.outlookUid);
           if (!d || d.fecha !== fechaE) { cambio = true; eliminadas += d ? 0 : 1; continue; } // borrado o movido de día
           vistos.add(it.outlookUid);
