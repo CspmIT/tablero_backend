@@ -52,12 +52,18 @@ const normalizarBuckets = (v) => {
 const fechaValida = (v) => { const d = v ? new Date(v) : null; return d && !Number.isNaN(d.getTime()) ? d : null; };
 
 // ---- Servidores -----------------------------------------------------------
-// La contraseña SÍ viaja acá (decisión de Leonardo 28/08: herramienta de
-// administración interna con 👁) — el guard de arriba es lo que la protege.
+// La contraseña de los MQTT viaja (decisión de Leonardo 28/08: herramienta de
+// administración interna con 👁). El TOKEN de los Influx no (pedido de Agustín
+// 10/09): se escribe una vez, se usa solo desde el back y la API solo dice si
+// está cargado (`tieneToken`).
+const publico = (s) => (s.tipo === 'influx'
+  ? { ...s, contrasena: undefined, tieneToken: Boolean(s.contrasena) }
+  : s);
+
 router.get('/servidores', async (req, res, next) => {
   try {
     const servidores = await prisma.labServidor.findMany({ orderBy: [{ tipo: 'asc' }, { nombre: 'asc' }] });
-    res.json({ servidores });
+    res.json({ servidores: servidores.map(publico) });
   } catch (e) { next(e); }
 });
 
@@ -78,7 +84,7 @@ router.post('/servidores', async (req, res, next) => {
         buckets: tipo === 'influx' ? normalizarBuckets(b.buckets) : null,
       },
     });
-    res.status(201).json(s);
+    res.status(201).json(publico(s));
   } catch (e) { next(e); }
 });
 
@@ -96,7 +102,7 @@ router.patch('/servidores/:id', async (req, res, next) => {
     if (b.puerto !== undefined) data.puerto = Number.isFinite(Number(b.puerto)) && Number(b.puerto) > 0 ? Number(b.puerto) : null;
     if (b.buckets !== undefined && s.tipo === 'influx') data.buckets = normalizarBuckets(b.buckets);
     if (!Object.keys(data).length) throw new ApiError(400, 'bad_request', 'Nada para actualizar');
-    res.json(await prisma.labServidor.update({ where: { id: s.id }, data }));
+    res.json(publico(await prisma.labServidor.update({ where: { id: s.id }, data })));
   } catch (e) { next(e); }
 });
 

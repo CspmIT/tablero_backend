@@ -3413,7 +3413,7 @@
           "contrasena": {
             "type": "string",
             "nullable": true,
-            "description": "En servidores Influx: token de API (viaja en claro; herramienta interna)"
+            "description": "Solo servidores MQTT (decisión 28/08). En servidores Influx el token NUNCA se devuelve: ver tieneToken."
           },
           "puerto": {
             "type": "integer",
@@ -3433,6 +3433,10 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "tieneToken": {
+            "type": "boolean",
+            "description": "Solo servidores Influx: si hay un token de API cargado (el valor no viaja al front)"
           }
         }
       },

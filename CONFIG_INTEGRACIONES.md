@@ -45,9 +45,11 @@ Cambiar la clave a futuro = repetir esos tres clics; sin tocar el servidor.
 
 Los servidores InfluxDB **no van en variables de entorno**: se cargan desde la
 solapa Laboratorio → InfluxDB → Agregar (URL, organización, token de API y la
-lista de buckets). Quedan en la tabla `LabServidor`; la contraseña/token se
-muestra con el ojito porque es una herramienta de administración interna
-(decisión 28/08). Cada borrado se ejecuta al confirmar contra ese servidor
+lista de buckets). Quedan en la tabla `LabServidor`. El token se escribe una
+vez y **no vuelve a mostrarse ni viaja al front**: la API solo informa si está
+cargado; para cambiarlo se pega uno nuevo al editar (vacío conserva el actual).
+Las contraseñas de los servidores MQTT sí se ven con el ojito (decisión 28/08,
+herramienta interna). Cada borrado se ejecuta al confirmar contra ese servidor
 (`src/lib/influx.js`: consulta → delete → reconsulta) y queda registrado en
 `LabBorrado` con quién, cuándo, rango, tópico y resultado.
 
