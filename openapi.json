@@ -57,6 +57,10 @@
     },
     {
       "name": "costos"
+    },
+    {
+      "name": "laboratorio",
+      "description": "Laboratorio: servidores InfluxDB/MQTT y borrado de datos en InfluxDB (equipo interno)"
     }
   ],
   "paths": {
@@ -117,11 +121,11 @@
               }
             }
           },
-          "422": {
-            "$ref": "#/components/responses/Validation"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
           }
         }
       }
@@ -259,11 +263,11 @@
               }
             }
           },
-          "422": {
-            "$ref": "#/components/responses/Validation"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
           }
         }
       }
@@ -411,11 +415,11 @@
               }
             }
           },
-          "422": {
-            "$ref": "#/components/responses/Validation"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
           }
         }
       }
@@ -553,11 +557,11 @@
               }
             }
           },
-          "422": {
-            "$ref": "#/components/responses/Validation"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
           }
         }
       }
@@ -695,11 +699,11 @@
               }
             }
           },
-          "422": {
-            "$ref": "#/components/responses/Validation"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
           }
         }
       }
@@ -847,11 +851,11 @@
               }
             }
           },
-          "422": {
-            "$ref": "#/components/responses/Validation"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
           }
         }
       }
@@ -989,11 +993,11 @@
               }
             }
           },
-          "422": {
-            "$ref": "#/components/responses/Validation"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
           }
         }
       }
@@ -1131,11 +1135,11 @@
               }
             }
           },
-          "422": {
-            "$ref": "#/components/responses/Validation"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
           }
         }
       }
@@ -1273,11 +1277,11 @@
               }
             }
           },
-          "422": {
-            "$ref": "#/components/responses/Validation"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
           }
         }
       }
@@ -1415,11 +1419,11 @@
               }
             }
           },
-          "422": {
-            "$ref": "#/components/responses/Validation"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
           }
         }
       }
@@ -1931,6 +1935,333 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/laboratorio/servidores": {
+      "get": {
+        "tags": [
+          "laboratorio"
+        ],
+        "summary": "Servidores InfluxDB/MQTT cargados",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "servidores": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LabServidor"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso (solo manager, gerencial o collaborator)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "laboratorio"
+        ],
+        "summary": "Alta de servidor",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabServidorInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabServidor"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "403": {
+            "description": "Sin permiso (solo manager, gerencial o collaborator)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/laboratorio/servidores/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "laboratorio"
+        ],
+        "summary": "Editar servidor (contraseña vacía = conservar)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabServidorInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabServidor"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "laboratorio"
+        ],
+        "summary": "Eliminar servidor (el historial conserva el nombre)",
+        "responses": {
+          "204": {
+            "description": "Eliminado"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/laboratorio/borrados": {
+      "get": {
+        "tags": [
+          "laboratorio"
+        ],
+        "summary": "Historial de borrados (últimos 200)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "borrados": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LabBorrado"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso (solo manager, gerencial o collaborator)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "laboratorio"
+        ],
+        "summary": "Borrar datos de un tópico en InfluxDB (se ejecuta en el momento)",
+        "description": "Registra la solicitud y la ejecuta contra el servidor Influx del bucket: consulta si hay datos, borra con el predicado topic=\"…\", espera 1 s y vuelve a consultar. Responde la fila con estado ejecutado | sin_datos | error.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabBorradoInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ejecutado (ver estado)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabBorrado"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "403": {
+            "description": "Sin permiso (solo manager, gerencial o collaborator)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/laboratorio/borrados/{id}/ejecutar": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "laboratorio"
+        ],
+        "summary": "Reintentar una solicitud pendiente o con error",
+        "responses": {
+          "200": {
+            "description": "Ejecutado (ver estado)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabBorrado"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/laboratorio/borrados/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "laboratorio"
+        ],
+        "summary": "Marcar a mano estado/resultado",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "estado": {
+                    "type": "string",
+                    "enum": [
+                      "pendiente",
+                      "ejecutado",
+                      "sin_datos",
+                      "error",
+                      "cancelado"
+                    ]
+                  },
+                  "resultado": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabBorrado"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "laboratorio"
+        ],
+        "summary": "Cancelar una solicitud pendiente",
+        "responses": {
+          "204": {
+            "description": "Cancelada"
+          },
+          "400": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -3051,6 +3382,212 @@
           "cotizacionDolar": {
             "type": "number",
             "nullable": true
+          }
+        }
+      },
+      "LabServidor": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "influx",
+              "mqtt"
+            ]
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "example": "http://200.63.120.50:18086"
+          },
+          "usuario": {
+            "type": "string",
+            "nullable": true,
+            "description": "En servidores Influx: organización (default CoopMorteros)"
+          },
+          "contrasena": {
+            "type": "string",
+            "nullable": true,
+            "description": "Solo servidores MQTT (decisión 28/08). En servidores Influx el token NUNCA se devuelve: ver tieneToken."
+          },
+          "puerto": {
+            "type": "integer",
+            "nullable": true
+          },
+          "buckets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tieneToken": {
+            "type": "boolean",
+            "description": "Solo servidores Influx: si hay un token de API cargado (el valor no viaja al front)"
+          }
+        }
+      },
+      "LabServidorInput": {
+        "type": "object",
+        "required": [
+          "tipo",
+          "nombre",
+          "url"
+        ],
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "influx",
+              "mqtt"
+            ]
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "usuario": {
+            "type": "string"
+          },
+          "contrasena": {
+            "type": "string"
+          },
+          "puerto": {
+            "type": "integer"
+          },
+          "buckets": {
+            "description": "Lista o texto multilínea (solo influx)",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        }
+      },
+      "LabBorrado": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "servidorMqttId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "servidorNombre": {
+            "type": "string",
+            "nullable": true
+          },
+          "servidorInfluxId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "servidorInfluxNombre": {
+            "type": "string",
+            "nullable": true
+          },
+          "bucket": {
+            "type": "string"
+          },
+          "topico": {
+            "type": "string"
+          },
+          "desde": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hasta": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "pendiente",
+              "ejecutado",
+              "sin_datos",
+              "error",
+              "cancelado"
+            ],
+            "description": "ejecutado = borrado y verificado; sin_datos = no había nada que borrar; error = motivo en resultado"
+          },
+          "resultado": {
+            "type": "string",
+            "nullable": true
+          },
+          "solicitadoPorId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "solicitadoPor": {
+            "type": "string",
+            "nullable": true
+          },
+          "ejecutadoAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LabBorradoInput": {
+        "type": "object",
+        "required": [
+          "desde",
+          "hasta",
+          "servidorInfluxId",
+          "bucket",
+          "topico"
+        ],
+        "properties": {
+          "desde": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC (la pantalla convierte desde hora de Argentina)"
+          },
+          "hasta": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "servidorMqttId": {
+            "type": "integer",
+            "description": "Opcional: solo referencia en el historial, el borrado no lo usa"
+          },
+          "servidorInfluxId": {
+            "type": "integer",
+            "description": "Servidor Influx dueño del bucket"
+          },
+          "bucket": {
+            "type": "string"
+          },
+          "topico": {
+            "type": "string"
           }
         }
       }
