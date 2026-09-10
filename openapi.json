@@ -3561,7 +3561,6 @@
         "required": [
           "desde",
           "hasta",
-          "servidorMqttId",
           "servidorInfluxId",
           "bucket",
           "topico"
@@ -3577,7 +3576,8 @@
             "format": "date-time"
           },
           "servidorMqttId": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Opcional: solo referencia en el historial, el borrado no lo usa"
           },
           "servidorInfluxId": {
             "type": "integer",

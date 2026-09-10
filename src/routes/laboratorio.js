@@ -140,11 +140,13 @@ router.post('/borrados', async (req, res, next) => {
       b.servidorMqttId ? prisma.labServidor.findUnique({ where: { id: Number(b.servidorMqttId) } }) : null,
       b.servidorInfluxId ? prisma.labServidor.findUnique({ where: { id: Number(b.servidorInfluxId) } }) : null,
     ]);
-    if (!mqtt) throw new ApiError(400, 'bad_request', 'Elegí el servidor MQTT');
+    // El servidor MQTT es opcional (10/09, como en la pantalla vieja de la OV):
+    // el borrado no lo usa, solo queda como referencia en el historial.
+    if (b.servidorMqttId && !mqtt) throw new ApiError(400, 'bad_request', 'El servidor MQTT elegido ya no existe');
     if (!influx || influx.tipo !== 'influx') throw new ApiError(400, 'bad_request', 'Elegí el bucket de un servidor InfluxDB');
     const creado = await prisma.labBorrado.create({
       data: {
-        servidorMqttId: mqtt.id, servidorNombre: mqtt.nombre,
+        servidorMqttId: mqtt?.id ?? null, servidorNombre: mqtt?.nombre ?? null,
         servidorInfluxId: influx.id, servidorInfluxNombre: influx.nombre,
         bucket, topico, desde, hasta,
         solicitadoPorId: req.colaborador?.id ?? null,

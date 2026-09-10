@@ -33,11 +33,13 @@ Ramas: `feature/laboratorio-influx-ejecucion` desde `origin/juan`, en
 - Tópico escapado en la consulta Flux y en el predicado (el PHP lo concatenaba crudo).
 - Chequeo de existencia con `limit(n: 1)` en vez de `aggregateWindow(1m)`: misma
   respuesta sí/no, mucho menos carga en Influx.
-- Se respeta el diseño de Juan: servidor MQTT obligatorio en la solicitud, roles
+- Se respeta el diseño de Juan: roles
   manager + gerencial + collaborator, contraseñas MQTT visibles con el ojito.
 - **El token de Influx no viaja al front** (pedido de Agustín, 10/09, después de
   la primera verificación): la API lo omite y manda `tieneToken`; la tabla dice
   "Cargado"/"Falta" y el formulario lo pide sin ojito y no lo vuelve a mostrar.
+- **Servidor MQTT opcional** (pedido de Agustín, 10/09): la pantalla vieja no lo
+  pedía y el borrado no lo usa; queda solo como referencia en el historial.
 - Para servidores Influx, los campos existentes se leen así: `contrasena` = token
   de API, `usuario` = organización (si está vacío, `INFLUX_ORG` o `CoopMorteros`).
   En la pantalla las etiquetas pasan a decir "Organización" y "Token" cuando el
