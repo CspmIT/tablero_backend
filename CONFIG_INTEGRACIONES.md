@@ -1,8 +1,9 @@
 # Configuración de integraciones — Tablero Cooptech
 
-Las dos integraciones externas del tablero se activan **solo con variables de
-entorno**: sin credenciales cargadas, el sistema funciona igual con su modo
-degradado. No hay que tocar código ni redesplegar lógica para encenderlas.
+Las integraciones externas del tablero se activan **solo con variables de
+entorno** o con datos cargados desde la propia app: sin credenciales, el sistema
+funciona igual con su modo degradado. No hay que tocar código ni redesplegar
+lógica para encenderlas.
 
 ## 1. Asistente IA (Claude)
 
@@ -40,9 +41,35 @@ Cambiar la clave a futuro = repetir esos tres clics; sin tocar el servidor.
   el impacto interno se hace igual y la UI ofrece el `.ics` con un aviso del error.
   La videollamada nunca queda sin camino.
 
+## 3. Laboratorio: borrado de datos en InfluxDB (10/09/2026)
+
+Los servidores InfluxDB **no van en variables de entorno**: se cargan desde la
+solapa Laboratorio → InfluxDB → Agregar (URL, organización, token de API y la
+lista de buckets). Quedan en la tabla `LabServidor`; la contraseña/token se
+muestra con el ojito porque es una herramienta de administración interna
+(decisión 28/08). Cada borrado se ejecuta al confirmar contra ese servidor
+(`src/lib/influx.js`: consulta → delete → reconsulta) y queda registrado en
+`LabBorrado` con quién, cuándo, rango, tópico y resultado.
+
+| Variable | Valor | Obligatoria |
+|---|---|---|
+| `INFLUX_ORG` | Organización por defecto cuando el servidor no tiene cargada la suya (default: `CoopMorteros`) | No |
+| `INFLUX_TIMEOUT_MS` | Tiempo máximo por llamada a Influx, en milisegundos (default: `15000`) | No |
+
+- **Sin servidores cargados:** la pantalla lo dice y el formulario no deja borrar.
+- **Servidor caído, token rechazado o bucket inexistente:** la solicitud queda en
+  estado `error` con el motivo en castellano y un botón «Reintentar».
+- El token necesita permiso de **lectura y escritura** sobre el bucket (el delete
+  de Influx es una operación de escritura). El servidor de producción debe llegar
+  a las URLs cargadas: hoy IOT (`200.63.120.50:18086`) responde desde la red de
+  la cooperativa; ENERGIA (`10.10.115.8:8086`) es una IP interna.
+- Migrado de `Influx/delete_influx` de la Oficina Virtual, donde los tokens
+  estaban escritos en el PHP. Conviene rotarlos en Influx y recargarlos acá.
+
 ## Reglas
 
-- Credenciales **solo** en variables de entorno del servidor. Nunca en el repo.
+- Credenciales **solo** en variables de entorno del servidor o cargadas desde la
+  app (cifradas o restringidas por rol). Nunca en el repo.
 - Ante sospecha de filtración: revocar/regenerar (consola de Anthropic / Entra ID)
   y actualizar las variables. No hay nada más que tocar.
 - El secreto de Graph vence (24 meses recomendados): registrar la fecha y renovarlo antes.

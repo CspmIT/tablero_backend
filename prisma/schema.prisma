@@ -854,11 +854,14 @@ model LabServidor {
   updatedAt  DateTime @updatedAt
 }
 
-// Cola de solicitudes de borrado de datos en InfluxDB. Esta ola guarda y
-// audita; el PROCESO EJECUTOR de los colaboradores toma las 'pendiente',
-// corre la delete query contra Influx y reporta por PATCH (ejecutado/error
-// + resultado). Los nombres de servidor van como snapshot para que el
-// historial se lea aunque el servidor se borre después.
+// Solicitudes de borrado de datos en InfluxDB, con su resultado (auditoría).
+// 28/08: cola que guardaba 'pendiente'. 10/09: el back las ejecuta al crearse
+// (lib/influx.js: consulta → delete → reconsulta) y deja estado + resultado
+// en la misma fila; las 'pendiente' viejas y los 'error' se reintentan con
+// POST /laboratorio/borrados/:id/ejecutar. Estados: pendiente | ejecutado |
+// sin_datos (no había nada que borrar) | error | cancelado. Los nombres de
+// servidor van como snapshot para que el historial se lea aunque el servidor
+// se borre después.
 model LabBorrado {
   id                   Int       @id @default(autoincrement())
   servidorMqttId       Int?
@@ -869,8 +872,8 @@ model LabBorrado {
   topico               String    @db.VarChar(500)
   desde                DateTime
   hasta                DateTime
-  estado               String    @default("pendiente") @db.VarChar(20) // pendiente | ejecutado | error | cancelado
-  resultado            String?   @db.Text // detalle que deja el proceso ejecutor
+  estado               String    @default("pendiente") @db.VarChar(20) // pendiente | ejecutado | sin_datos | error | cancelado
+  resultado            String?   @db.Text // qué pasó, en palabras (lo escribe lib/influx.js o la ruta)
   solicitadoPorId      Int?
   solicitadoPor        String?   // nombre snapshot (auditoría legible)
   ejecutadoAt          DateTime?

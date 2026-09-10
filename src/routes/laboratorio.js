@@ -1,19 +1,47 @@
 // Laboratorio (28/08): funciones IoT migradas desde la Oficina Virtual —
-// ABM de servidores InfluxDB/MQTT y COLA de solicitudes de borrado de datos.
-// Esta ola guarda y audita; la EJECUCIÓN real contra Influx la conecta el
-// equipo (proceso que lee las 'pendiente' y reporta por PATCH).
+// ABM de servidores InfluxDB/MQTT y solicitudes de borrado de datos.
+// 10/09: el borrado se EJECUTA al crearse (como la pantalla vieja de la OV):
+// consulta → delete → reconsulta contra el servidor Influx guardado (lib/influx.js)
+// y el resultado queda en la misma fila de LabBorrado (auditoría). Las que
+// quedaron 'pendiente' de antes, o con 'error', se reintentan con /ejecutar.
 // Equipo interno solamente (decisión 28/08): manager + gerencial + collaborator.
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { requireTipo } from '../middleware/auth.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { ejecutarBorrado, InfluxError } from '../lib/influx.js';
 
 const router = Router();
 router.use(requireTipo('manager', 'gerencial', 'collaborator'));
 
 const limpiar = (v, max = 191) => String(v ?? '').trim().slice(0, max) || null;
 const TIPOS = ['influx', 'mqtt'];
-const ESTADOS_BORRADO = ['pendiente', 'ejecutado', 'error', 'cancelado'];
+// sin_datos (10/09): se ejecutó pero no había nada que borrar en el rango.
+const ESTADOS_BORRADO = ['pendiente', 'ejecutado', 'sin_datos', 'error', 'cancelado'];
+
+// Ejecuta la solicitud contra su servidor Influx y deja el resultado en la
+// fila. Nunca lanza: cualquier falla queda como estado 'error' con un mensaje
+// legible, para que el historial cuente qué pasó.
+async function ejecutarSolicitud(sol) {
+  const servidor = sol.servidorInfluxId
+    ? await prisma.labServidor.findUnique({ where: { id: sol.servidorInfluxId } })
+    : null;
+  let r;
+  if (!servidor || servidor.tipo !== 'influx') {
+    r = { estado: 'error', resultado: 'El servidor InfluxDB de esta solicitud ya no existe. Cargalo de nuevo y reintentá.' };
+  } else {
+    try {
+      r = await ejecutarBorrado(servidor, sol);
+    } catch (e) {
+      if (!(e instanceof InfluxError)) console.error('[laboratorio] borrado', sol.id, e);
+      r = {
+        estado: 'error',
+        resultado: e instanceof InfluxError ? e.message : 'Falló la ejecución por un error inesperado. Avisá al equipo de desarrollo.',
+      };
+    }
+  }
+  return prisma.labBorrado.update({ where: { id: sol.id }, data: { ...r, ejecutadoAt: new Date() } });
+}
 
 // buckets: acepta lista de strings o texto multilínea; devuelve lista limpia.
 const normalizarBuckets = (v) => {
@@ -90,7 +118,8 @@ router.get('/borrados', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Crea la SOLICITUD (queda 'pendiente'; la ejecuta el proceso del área).
+// Crea la solicitud y la EJECUTA en el momento. Responde la fila ya con su
+// resultado (ejecutado | sin_datos | error) para que la pantalla lo muestre.
 router.post('/borrados', async (req, res, next) => {
   try {
     const b = req.body || {};
@@ -106,21 +135,34 @@ router.post('/borrados', async (req, res, next) => {
       b.servidorInfluxId ? prisma.labServidor.findUnique({ where: { id: Number(b.servidorInfluxId) } }) : null,
     ]);
     if (!mqtt) throw new ApiError(400, 'bad_request', 'Elegí el servidor MQTT');
+    if (!influx || influx.tipo !== 'influx') throw new ApiError(400, 'bad_request', 'Elegí el bucket de un servidor InfluxDB');
     const creado = await prisma.labBorrado.create({
       data: {
         servidorMqttId: mqtt.id, servidorNombre: mqtt.nombre,
-        servidorInfluxId: influx?.id ?? null, servidorInfluxNombre: influx?.nombre ?? null,
+        servidorInfluxId: influx.id, servidorInfluxNombre: influx.nombre,
         bucket, topico, desde, hasta,
         solicitadoPorId: req.colaborador?.id ?? null,
         solicitadoPor: req.colaborador?.nombre ?? null,
       },
     });
-    res.status(201).json(creado);
+    res.status(201).json(await ejecutarSolicitud(creado));
   } catch (e) { next(e); }
 });
 
-// PARA EL PROCESO EJECUTOR (y para marcar a mano si hace falta): reporta el
-// resultado de una solicitud. Sella ejecutadoAt al pasar a ejecutado/error.
+// Reintenta una solicitud 'pendiente' (encolada antes del 10/09) o con 'error'.
+router.post('/borrados/:id/ejecutar', async (req, res, next) => {
+  try {
+    const sol = await prisma.labBorrado.findUnique({ where: { id: Number(req.params.id) } });
+    if (!sol) throw new ApiError(404, 'not_found', 'Solicitud no encontrada');
+    if (!['pendiente', 'error'].includes(sol.estado)) {
+      throw new ApiError(400, 'bad_request', 'Solo se puede ejecutar una solicitud pendiente o con error');
+    }
+    res.json(await ejecutarSolicitud(sol));
+  } catch (e) { next(e); }
+});
+
+// Para marcar a mano el resultado de una solicitud si hace falta (p.ej. un
+// borrado hecho por fuera). Sella ejecutadoAt al pasar a ejecutado/error.
 router.patch('/borrados/:id', async (req, res, next) => {
   try {
     const sol = await prisma.labBorrado.findUnique({ where: { id: Number(req.params.id) } });
