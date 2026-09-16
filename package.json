@@ -10,7 +10,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "db:seed": "node prisma/seed.js",
-    "db:seed:usuarios": "node prisma/seedUsuarios.js"
+    "db:seed:usuarios": "node prisma/seedUsuarios.js",
+    "db:seed:permisos": "node prisma/seedPermisosOrganizaciones.js"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
