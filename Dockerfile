@@ -11,6 +11,9 @@ ARG AUTH_JWT_SECRET
 # aviso en el log; ver src/lib/almacenamiento.js).
 ARG STORAGE_ACCESS
 ARG STORAGE_SECRET
+# API key del catálogo de firmwares para Reconecta (AutonomIA). Sin ella el
+# endpoint /api/catalogo/firmwares responde 503 y el resto sigue igual.
+ARG FIRMWARES_API_KEY
 
 # Variables que usa la app: Prisma lee DATABASE_URL; el auth valida el JWT con
 # AUTH_JWT_SECRET cuando AUTH_MODE=prod. AUTH_MODE y PORT son config (no secrets).
@@ -24,6 +27,8 @@ ENV STORAGE_URL=https://storageov.cooptech.com.ar
 ENV STORAGE_BUCKET=tablero
 ENV STORAGE_ACCESS=$STORAGE_ACCESS
 ENV STORAGE_SECRET=$STORAGE_SECRET
+# Catálogo de firmwares para otras apps (ver src/routes/catalogoFirmwares.js).
+ENV FIRMWARES_API_KEY=$FIRMWARES_API_KEY
 
 COPY package*.json ./
 RUN npm install

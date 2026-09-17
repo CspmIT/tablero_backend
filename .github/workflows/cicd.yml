@@ -50,5 +50,6 @@ jobs:
                      --build-arg AUTH_JWT_SECRET=${{ secrets.AUTH_JWT_SECRET }} \
                      --build-arg STORAGE_ACCESS=${{ secrets.MINIO_ACCESS }} \
                      --build-arg STORAGE_SECRET=${{ secrets.MINIO_SECRET }} \
+                     --build-arg FIRMWARES_API_KEY=${{ secrets.FIRMWARES_API_KEY }} \
                     -t ${{ secrets.DOCKER_USER_NAME }}/${REPO_NAME}:${{ needs.bump.outputs.new_tag }} .
                   docker push ${{ secrets.DOCKER_USER_NAME }}/${REPO_NAME}:${{ needs.bump.outputs.new_tag }}

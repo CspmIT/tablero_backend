@@ -7,9 +7,10 @@ aplicación del ecosistema. Está pensado para trabajarse desde este repo
 
 Fecha: 17/09/2026. Rama sobre la que se verificó: `juan`.
 
-**Estado: nada de esto está implementado todavía.** A esta fecha, en `juan` no
-existe `src/routes/catalogoFirmwares.js` ni ninguno de los cambios de la sección
-2: lo único que hay en el árbol es este documento. Es un plan, no una bitácora.
+**Estado (17/09/2026): implementado en `juan`.** Están los seis archivos de la
+sección 2 y la clave en el `.env` local. Queda pendiente, fuera de este repo:
+cargar el secret `FIRMWARES_API_KEY` en GitHub y lo del lado de Reconecta
+(variables `AUTONOMIA_CATALOG_*`, migración y seeder de AutonomIA).
 
 ---
 
@@ -302,28 +303,38 @@ ninguno de los pedidos es un producto conocido, la respuesta viene vacía.
 
 ## 4. Cómo verificar
 
+Ojo con el `.env` en local: **Prisma Client lo carga solo**, aunque se importe
+`createApp()` sin `dotenv`. O sea que si `FIRMWARES_API_KEY` está en el `.env`,
+el proceso la ve siempre; para probar el 503 hay que vaciarla en el entorno.
+
 ```bash
-# 1) Sin FIRMWARES_API_KEY en el .env — el 503 gana antes que el 401
-npm run dev
+npm run dev   # AUTH_MODE=dev del .env local no influye en este endpoint
+CLAVE=$(grep '^FIRMWARES_API_KEY=' .env | cut -d= -f2)
+
+curl -s -o /dev/null -w '%{http_code}\n' localhost:4000/api/catalogo/firmwares         # 401
+curl -s -H "x-api-key: $CLAVE" localhost:4000/api/catalogo/firmwares | head -c 300      # 200
+curl -s -H "Authorization: Bearer $CLAVE" localhost:4000/api/catalogo/firmwares >/dev/null  # 200
+
+# 503: la variable vacía le gana al .env (dotenv no pisa lo que ya está definido)
+FIRMWARES_API_KEY= npm run dev
 curl -s localhost:4000/api/catalogo/firmwares
 # → 503 {"error":{"code":"not_configured",...}}
-
-# 2) Con FIRMWARES_API_KEY=<clave> en el .env (AUTH_MODE no influye acá)
-npm run dev
-curl -s -o /dev/null -w '%{http_code}\n' localhost:4000/api/catalogo/firmwares       # 401
-curl -s -H "x-api-key: <clave>" localhost:4000/api/catalogo/firmwares | head -c 300   # 200
 ```
 
-Verificado con stubs de la base durante el diseño (los stubs no quedaron en el
-repo; si se reimplementa, conviene rehacer estos casos):
+Probado el 17/09/2026 con un stub del catálogo (la base de desarrollo lo tiene
+vacío y es compartida, así que no se le escribió nada). Todo en verde:
 
-- sin variable → 503; sin clave o clave incorrecta → 401
+- sin la variable → 503; sin clave, clave incorrecta o de otra longitud → 401
 - clave vieja y nueva conviven (rotación); anda por `x-api-key` y por `Bearer`
 - los releases con `aprobado !== true` no salen
-- no se filtran `fuente` ni `subidoPor`
-- `?producto=` filtra; un producto inexistente devuelve vacío, no el catálogo
-- punta a punta contra el `AutonomiaService` de Reconecta: devuelve el release
-  con sus segmentos (`offset` + `key`) y el `merged`
+- no se filtran `fuente` ni `subidoPor` (salen 11 campos, todos de flasheo)
+- `?producto=Reconecta,General` filtra; `%2BAgua` trae +Agua; un `+Agua` mal
+  encodeado o un producto inexistente devuelven vacío, no el catálogo entero
+- `/api/catalogo/<otra cosa>` cae al router protegido (404), no queda expuesto
+- punta a punta con el `AutonomiaService` real de Reconecta apuntando acá:
+  `origen: tablero`, los releases con sus segmentos (`offset` + `key`) y el
+  `merged`, `keyPermitida()` en true para una key del catálogo y false para una
+  ajena; con el token equivocado falla con 401, como corresponde
 
 ---
 

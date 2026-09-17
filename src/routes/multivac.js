@@ -132,10 +132,11 @@ router.put('/plantilla-sensor', async (req, res, next) => {
 // NUNCA erase-all: se escriben SOLO los segmentos del manifiesto (NVS/LittleFS
 // y el spool de mediciones quedan intactos — decisión de Lorenzo, 10/08).
 // ---------------------------------------------------------------------------
-const CLAVE_FIRMWARES = 'multivac_firmwares';
+// Exportada: la reusa el catálogo con API key (routes/catalogoFirmwares.js).
+export const CLAVE_FIRMWARES = 'multivac_firmwares';
 const CHIPS = ['esp32', 'esp32s3', 'esp32c3'];
 // Producto (aplicación) que corre el firmware — columna del catálogo (12/08).
-const PRODUCTOS_FW = ['General', '+Agua', 'Reconecta', 'Centinela'];
+export const PRODUCTOS_FW = ['General', '+Agua', 'Reconecta', 'Centinela'];
 // Criterio de diseño (12/08): cada modelo de placa tiene UN chip inamovible —
 // el servidor lo impone aunque el cliente mande otra cosa. Placa nueva = una línea.
 const CHIP_POR_MODELO = {

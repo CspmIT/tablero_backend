@@ -68,6 +68,38 @@ herramienta interna). Cada borrado se ejecuta al confirmar contra ese servidor
 - Migrado de `Influx/delete_influx` de la Oficina Virtual, donde los tokens
   estaban escritos en el PHP. Conviene rotarlos en Influx y recargarlos acá.
 
+## 4. Catálogo de firmwares para Reconecta / AutonomIA (17/09/2026)
+
+El módulo AutonomIA de Reconecta lee los releases de firmware que ingeniería
+publica y aprueba acá (Multivac → «Gestión de versiones»), pero lo hace **sin un
+usuario humano detrás**: su backend consulta
+`GET /api/catalogo/firmwares[?producto=Reconecta,General]` con una API key
+propia, montada antes del login del tablero (`src/routes/catalogoFirmwares.js`).
+Devuelve **solo los releases aprobados** y recortados campo por campo: no salen
+los que están sin aprobar, ni el `.zip` del proyecto Arduino (`fuente`), ni
+quién subió cada release (`subidoPor`). Es de solo lectura: el catálogo se
+sigue editando únicamente desde el tablero. Los binarios no salen por acá —
+Reconecta los baja del storage con sus propias credenciales.
+
+| Variable | Valor | Obligatoria |
+|---|---|---|
+| `FIRMWARES_API_KEY` | La clave que presenta Reconecta, en `x-api-key` o como `Authorization: Bearer`. Se aceptan **varias separadas por coma** | Sí, para habilitar el endpoint |
+
+- **Sin la variable:** el endpoint responde `503 not_configured`. Nunca queda
+  abierto por olvido, y el resto de la API sigue igual.
+- **Clave ausente o incorrecta:** `401 unauthorized`. La comparación es de tiempo
+  constante sobre el hash, no se puede adivinar midiendo la respuesta.
+- **Rotar la clave:** poner las dos (`vieja,nueva`) en la variable, cambiarla en
+  el `.env` de Reconecta y recién ahí sacar la vieja. Sin corte de servicio.
+- El filtro `?producto=` usa los nombres del catálogo (`General`, `+Agua`,
+  `Reconecta`, `Centinela`) **url-encodeados**: `+Agua` va como `%2BAgua`, porque
+  un `+` crudo llega como espacio. Si ninguno de los pedidos es un producto
+  conocido, la respuesta viene vacía.
+- En producción la clave entra por el build (`secret FIRMWARES_API_KEY` en
+  GitHub → `--build-arg` del workflow → `ENV` del `Dockerfile`).
+- Del otro lado, en el `.env` de `back-reconecta`: `AUTONOMIA_CATALOG_URL` con
+  esa URL y `AUTONOMIA_CATALOG_TOKEN` con la misma clave.
+
 ## Reglas
 
 - Credenciales **solo** en variables de entorno del servidor o cargadas desde la

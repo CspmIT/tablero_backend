@@ -10,6 +10,7 @@ import { authenticate } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import apiRouter from './routes/index.js';
 import { publicAuthRouter } from './routes/auth.js';
+import { catalogoFirmwaresRouter } from './routes/catalogoFirmwares.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const openapi = JSON.parse(readFileSync(join(__dirname, '..', 'openapi.json'), 'utf-8'));
@@ -29,6 +30,11 @@ export function createApp() {
   // Login (público, sin authenticate). Las rutas que no matchean acá (p.ej.
   // /api/auth/me) caen al router protegido de abajo.
   app.use('/api/auth', publicAuthRouter);
+
+  // Catálogo de firmwares para otras apps del ecosistema (AutonomIA en
+  // Reconecta): API key propia, sin el login del tablero. Va antes de
+  // `authenticate` a propósito; ver routes/catalogoFirmwares.js.
+  app.use('/api/catalogo', catalogoFirmwaresRouter);
 
   // API (con autenticación)
   app.use('/api', authenticate, apiRouter);
