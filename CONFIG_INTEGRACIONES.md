@@ -99,6 +99,11 @@ Reconecta los baja del storage con sus propias credenciales.
   GitHub → `--build-arg` del workflow → `ENV` del `Dockerfile`).
 - Del otro lado, en el `.env` de `back-reconecta`: `AUTONOMIA_CATALOG_URL` con
   esa URL y `AUTONOMIA_CATALOG_TOKEN` con la misma clave.
+- **Ojo con las instrucciones de deploy del 17/09 de Leonardo:** hablan de
+  `GET /api/multivac/firmwares/publicados` y del secret `MULTIVAC_CATALOGO_TOKENS`.
+  Es otra implementación de esto mismo, hecha en paralelo; nos quedamos con la de
+  acá, que ya estaba andando y probada contra Reconecta. El secret que hay que
+  cargar es **`FIRMWARES_API_KEY`**.
 
 ## Reglas
 

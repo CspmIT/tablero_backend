@@ -9,7 +9,7 @@
 //
 // Ahora es UNA sola definición, en la clave cifrada `coopcloud_simulador` de
 // Configuracion. SIN migración: misma tabla que la grilla típica.
-//   Lectura:   cualquier colaborador habilitado (la usa el presupuestador).
+//   Lectura:   equipo interno (manager/gerencial/collaborator).
 //   Escritura: manager/gerencial, como la grilla típica — es un parámetro de
 //              conducción, no algo que cada uno ajuste para su presupuesto.
 // A quien no puede escribir, el front le avisa «solo lectura» con el 403 y no
@@ -24,13 +24,19 @@ const router = Router();
 const CLAVE_SIMULADOR = 'coopcloud_simulador';
 // El estado lo define el HTML del presupuestador (public/presupuestadores/
 // coopcloud.html) y cambia con él, así que acá NO se valida campo por campo:
-// se guarda el objeto tal cual, con un techo de tamaño para que no entre
-// cualquier cosa.
-const MAX_BYTES = 256 * 1024;
+// se guarda el objeto tal cual, con un techo de tamaño.
+// El techo NO es arbitrario: `Configuracion.valor` es un TEXT de MySQL (65.535
+// BYTES) y lo que se guarda va cifrado en base64, que agrega un tercio. O sea
+// que el JSON en limpio no puede pasar de ~48.000 bytes; 45.000 deja margen.
+// Pasarse no daría un error prolijo: MySQL truncaría el cifrado y la
+// definición quedaría ilegible (se leería como «no configurado»).
+const MAX_BYTES = 45_000;
 
 // GET /coopcloud/simulador → { estado } (null si todavía nadie la sembró: el
 // presupuestador entonces rescata, una sola vez, lo que tenga ese navegador).
-router.get('/simulador', async (req, res, next) => {
+// Lectura del equipo interno: los precios de la unidad no son para `externo`
+// (mismo criterio que /contactos y /analisisOv).
+router.get('/simulador', requireTipo('manager', 'gerencial', 'collaborator'), async (req, res, next) => {
   try {
     const raw = await getConfig(CLAVE_SIMULADOR);
     let estado = null;
