@@ -6,6 +6,7 @@ import { ApiError } from '../middleware/errorHandler.js';
 
 import authRouter from './auth.js';
 import leadsRouter from './leads.js';
+import coopcloudRouter from './coopcloud.js';
 import archivosRouter from './archivos.js';
 import grillaRouter from './grilla.js';
 import guardiasRouter from './guardias.js';
@@ -247,6 +248,8 @@ router.use('/permisos', permisosRouter);
 router.use('/reuniones', reunionesRouter);
 // Notificaciones push (suscripción del navegador/PWA)
 router.use('/push', pushRouter);
+// Simulador CoopCloud: la definición global de precios (escritura de conducción)
+router.use('/coopcloud', coopcloudRouter);
 router.use('/notas', notasRouter);      // Mis notas semanales (ola 3)
 router.use('/multivac', multivacRouter); // Botones compartidos del terminal (ola 3)
 // Costos: solo rol gerencial/manager puede escribir; lectura para todos los habilitados
