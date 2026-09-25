@@ -11,6 +11,7 @@ import { errorHandler, notFound } from './middleware/errorHandler.js';
 import apiRouter from './routes/index.js';
 import { publicAuthRouter } from './routes/auth.js';
 import { catalogoFirmwaresRouter } from './routes/catalogoFirmwares.js';
+import landingRouter from './routes/landing.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const openapi = JSON.parse(readFileSync(join(__dirname, '..', 'openapi.json'), 'utf-8'));
@@ -35,6 +36,11 @@ export function createApp() {
   // Reconecta): API key propia, sin el login del tablero. Va antes de
   // `authenticate` a propósito; ver routes/catalogoFirmwares.js.
   app.use('/api/catalogo', catalogoFirmwaresRouter);
+
+  // API pública de la landing de Cooptech (25/09): los 6 monómicos PUBLICADOS
+  // y los logos de «Logos Clientes». Sin token (la consulta el navegador del
+  // visitante); solo GET de datos ya públicos en la web. ANTES del authenticate.
+  app.use('/api', landingRouter);
 
   // API (con autenticación)
   app.use('/api', authenticate, apiRouter);

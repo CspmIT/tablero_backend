@@ -105,6 +105,23 @@ Reconecta los baja del storage con sus propias credenciales.
   acá, que ya estaba andando y probada contra Reconecta. El secret que hay que
   cargar es **`FIRMWARES_API_KEY`**.
 
+## 5. API pública de la landing de Cooptech (25/09/2026)
+
+Sin login ni token (la consulta el navegador del visitante), montada antes de
+`authenticate` en `src/routes/landing.js`:
+
+- `GET /api/landing/monomicos` → los 6 precios unitarios **publicados** a
+  propósito con el botón «Publicar precios en la web» del simulador global
+  (clave `landing_monomicos`). Hasta la primera publicación: `404 sin_publicar`.
+- `GET /api/landing/clientes` → los logos de Marketing → Marca → Logos →
+  «Logos Clientes» (solo esa carpeta, solo imágenes).
+- `GET /api/landing/clientes/logos/:key` → el binario, leído del gateway con
+  `STORAGE_ACCESS/SECRET`.
+
+| Variable | Valor | Obligatoria |
+|---|---|---|
+| `LANDING_BASE_URL` | Host público del backend, para armar las URLs de los logos | No: solo si detrás del proxy salen con host interno |
+
 ## Reglas
 
 - Credenciales **solo** en variables de entorno del servidor o cargadas desde la

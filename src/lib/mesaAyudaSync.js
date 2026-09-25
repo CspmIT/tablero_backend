@@ -18,6 +18,7 @@
 // upsert del ticket es lo que alimenta las Métricas OV, que es lo urgente).
 import { prisma } from './prisma.js';
 import { getConfig, setConfig } from './config.js';
+import { notificarSuscriptosA } from './push.js';
 
 const ESTADOS = ['abierto', 'en_proceso', 'resuelto', 'cerrado'];
 const mapEstado = (v) => {
@@ -62,6 +63,7 @@ export async function sincronizarMesaAyuda(disparo = 'manual') {
   if (corriendo) return { ok: false, motivo: 'ya_corriendo' };
   corriendo = true;
   const resumen = { ok: false, disparo, inicio: new Date().toISOString(), creados: 0, actualizados: 0, paginas: 0, error: null };
+  const nuevosParaAvisar = []; // títulos de tickets CREADOS en esta corrida (25/09: push «Inbox: ticket nuevo»)
   try {
     const url = await getConfig('mesa_ayuda_url');
     const token = await getConfig('mesa_ayuda_token');
@@ -128,6 +130,7 @@ export async function sincronizarMesaAyuda(disparo = 'manual') {
           const creado = await prisma.ticket.create({ data: { ...campos, estado: campos.estado || mapEstado(t.estado), externalId } });
           ticketId = creado.id;
           resumen.creados += 1;
+          nuevosParaAvisar.push(campos.titulo);
         }
         // REAPERTURA (27/08 — «la novedad más importante que existe»: el equipo
         // creía que estaba terminado y el solicitante lo reabrió). Entra como
@@ -153,6 +156,26 @@ export async function sincronizarMesaAyuda(disparo = 'manual') {
     if (!resumen.error) {
       resumen.ok = true;
       if (ultimoCursor && ultimoCursor !== guardado) await setConfig('mesa_ayuda_since', ultimoCursor);
+    }
+
+    // 25/09 (pedido de Leonardo): push «Inbox: ticket nuevo» por lo CREADO en
+    // esta corrida (solo creados — las actualizaciones no avisan). Aunque la
+    // corrida haya terminado con error, lo ya creado es real y se avisa; si el
+    // cursor no avanzó, la próxima corrida los encuentra existentes (update)
+    // y NO re-avisa. Con muchos juntos (p.ej. un backfill) va UN aviso
+    // agrupado en lugar de metrallar un push por ticket.
+    if (nuevosParaAvisar.length) {
+      if (nuevosParaAvisar.length > 4) {
+        notificarSuscriptosA('ticket_nuevo', {
+          titulo: '🎫 Tickets nuevos en el Inbox',
+          cuerpo: `Entraron ${nuevosParaAvisar.length} tickets de la Mesa de ayuda`,
+          url: '/',
+        });
+      } else {
+        for (const titulo of nuevosParaAvisar) {
+          notificarSuscriptosA('ticket_nuevo', { titulo: '🎫 Ticket nuevo en el Inbox', cuerpo: titulo, url: '/' });
+        }
+      }
     }
   } catch (e) {
     resumen.error = e.message || 'No se pudo hablar con la Mesa de ayuda';
