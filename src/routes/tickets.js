@@ -12,6 +12,7 @@ import { requireTipo } from '../middleware/auth.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { borrarBinario } from '../lib/almacenamiento.js';
 import { estadoSync, guardarConfigSync, sincronizarMesaAyuda, avisarEstadoMesa } from '../lib/mesaAyudaSync.js';
+import { notificarSuscriptosA } from '../lib/push.js';
 
 const router = Router();
 router.use(requireTipo('manager', 'gerencial', 'collaborator'));
@@ -112,6 +113,13 @@ router.post('/', async (req, res, next) => {
         ocurridoAt: b.ocurridoAt ? new Date(`${String(b.ocurridoAt).slice(0, 10)}T12:00:00.000Z`) : null,
       },
     });
+    // 25/09: aviso opt-out «Inbox: ticket nuevo» (preferencias de Configuración).
+    // Fire-and-forget; se excluye a quien lo cargó (ya lo sabe).
+    notificarSuscriptosA('ticket_nuevo', {
+      titulo: '🎫 Ticket nuevo en el Inbox',
+      cuerpo: t.solicitante ? `${t.titulo} — ${t.solicitante}` : t.titulo,
+      url: '/',
+    }, req.colaborador?.id);
     res.status(201).json(t);
   } catch (e) { next(e); }
 });

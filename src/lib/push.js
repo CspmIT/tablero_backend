@@ -12,6 +12,11 @@ import { getConfig, setConfig } from './config.js';
 export const TIPOS_NOTIFICACION = [
   { id: 'reuniones', label: 'Reuniones', desc: 'Invitaciones, reprogramaciones y cancelaciones de reuniones donde participás', defecto: true },
   { id: 'crm_lead_ganado', label: 'CRM: lead ganado', desc: 'Aviso cuando un lead del CRM pasa a ganado', defecto: false },
+  // 25/09 (pedido de Leonardo): aviso al entrar un ticket nuevo al Inbox —
+  // por la sincronización con la Mesa de ayuda o por carga manual (en la carga
+  // manual se excluye a quien lo cargó). Arranca ACTIVADA (decisión Leonardo:
+  // los tickets son el trabajo diario del equipo; quien no quiera, la apaga).
+  { id: 'ticket_nuevo', label: 'Inbox: ticket nuevo', desc: 'Aviso cuando entra un ticket nuevo al Inbox (Mesa de ayuda o carga manual)', defecto: true },
 ];
 
 const CLAVE_PREFS = 'notificaciones_prefs'; // { [colabId]: { tipo: bool } }

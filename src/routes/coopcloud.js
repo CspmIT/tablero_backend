@@ -62,4 +62,33 @@ router.put('/simulador', requireTipo('manager', 'gerencial'), async (req, res, n
   } catch (e) { next(e); }
 });
 
+// Publicar precios en la web (25/09): la landing pública NO lee el simulador
+// en vivo (es herramienta de trabajo: un experimento guardado cambiaría los
+// precios públicos al instante). Publicar es una FOTO deliberada de los 6
+// monómicos, que queda en `landing_monomicos` y sale por el endpoint público
+// GET /api/landing/monomicos (routes/landing.js, montado sin login).
+const MONOMICOS_LANDING = ['vcpu', 'ram', 'ssd', 'hdd', 'ip', 'mbps'];
+
+// PUT /coopcloud/simulador/publicar { monomicos: { vcpu, ram, ssd, hdd, ip, mbps } }
+router.put('/simulador/publicar', requireTipo('manager', 'gerencial'), async (req, res, next) => {
+  try {
+    const m = req.body?.monomicos;
+    if (!m || typeof m !== 'object') {
+      throw new ApiError(400, 'bad_request', 'Se espera { monomicos: { vcpu, ram, ssd, hdd, ip, mbps } }');
+    }
+    const limpio = {};
+    for (const k of MONOMICOS_LANDING) {
+      const v = Number(m[k]);
+      if (!Number.isFinite(v) || v < 0) throw new ApiError(422, 'validation', `Monómico inválido: ${k}`);
+      limpio[k] = Math.round(v * 10000) / 10000; // 4 decimales, como los muestra el simulador
+    }
+    await setConfig('landing_monomicos', JSON.stringify({
+      ...limpio,
+      publicadoEl: new Date().toISOString(),
+      publicadoPor: req.colaborador?.nombre || null,
+    }));
+    res.json({ ok: true, monomicos: limpio });
+  } catch (e) { next(e); }
+});
+
 export default router;

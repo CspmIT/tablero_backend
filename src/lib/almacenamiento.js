@@ -46,6 +46,24 @@ export function urlDeBorrado(key) {
   return `${BASE}/minio/deleteImg/${encodeURIComponent(BUCKET)}/${encodeURIComponent(k)}`;
 }
 
+// Lectura del binario (25/09, API pública de la landing): mismo gateway,
+// camino getImg. Devuelve la Response del gateway (para streamear el body) o
+// null si no hay credenciales, la key tiene forma inesperada o no hay red.
+// Solo keys planas (uuid.ext) — las release: no se leen por acá.
+export async function descargarBinario(key) {
+  if (!almacenamientoConfigurado()) return null;
+  const k = String(key || '').trim();
+  if (!k || k.includes('/') || k.includes('..')) return null;
+  try {
+    return await fetch(`${BASE}/minio/getImg/${encodeURIComponent(BUCKET)}/${encodeURIComponent(k)}`, {
+      headers: { accesskey: ACCESS, secretkey: SECRET },
+    });
+  } catch (e) {
+    console.warn('[almacenamiento] no se pudo leer del gateway', k, '→', e.message);
+    return null;
+  }
+}
+
 // Borra el binario. Nunca lanza: devuelve { ok, motivo } y deja rastro en el log
 // cuando algo no salió, para poder limpiar a mano si hiciera falta.
 export async function borrarBinario(key) {
