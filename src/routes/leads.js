@@ -566,6 +566,11 @@ router.post('/:id/ganar', async (req, res, next) => {
       }
       return { lead: updated, proyecto, tareasCreadas: creadas };
     });
+    // Conector Ganado → Organizaciones (28/09, pedido de Leonardo): si el lead
+    // incluye Reconecta o +Agua, queda «Pendiente de crear» en Gestión de
+    // Organizaciones y Usuarios — NO se crea nada solo; el alta la hace una
+    // persona desde ese módulo, con el formulario precargado.
+    encolarOrganizacionPendiente(result.lead).catch(() => { /* jamás rompe el ganar */ });
     // Notificación opt-in "CRM: lead ganado" (preferencias de Configuración).
     notificarSuscriptosA('crm_lead_ganado', {
       titulo: '🎉 Lead ganado',
@@ -575,5 +580,31 @@ router.post('/:id/ganar', async (req, res, next) => {
     res.json(result);
   } catch (e) { next(e); }
 });
+
+// Cola «Pendientes de crear» del módulo Organizaciones (28/09). Vive como
+// JSON en Configuracion (sin migración): entradas chicas, poda a 200. Las
+// rutas GET/PATCH viven en routes/index.js (/organizaciones-pendientes).
+export const CLAVE_ORG_PENDIENTES = 'organizaciones_pendientes';
+async function encolarOrganizacionPendiente(lead) {
+  const prods = (Array.isArray(lead.productos) ? lead.productos : []).map((x) => String(x).toLowerCase());
+  if (!prods.some((x) => x.includes('reconecta') || x.includes('agua'))) return;
+  const raw = await getConfig(CLAVE_ORG_PENDIENTES);
+  let lista = [];
+  if (raw) { try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) lista = parsed; } catch { lista = []; } }
+  if (lista.some((e) => e.leadId === lead.id)) return; // re-ganado o doble click: no duplicar
+  lista.push({
+    leadId: lead.id,
+    organizacion: lead.organizacion,
+    ciudad: lead.ciudad || null,
+    contacto: lead.contactoNombre || null,
+    email: lead.email || null,
+    telefono: lead.telefono || null,
+    productos: Array.isArray(lead.productos) ? lead.productos : [],
+    fecha: new Date().toISOString(),
+    estado: 'pendiente', // pendiente | creada | descartada
+  });
+  if (lista.length > 200) lista = lista.slice(-200);
+  await setConfig(CLAVE_ORG_PENDIENTES, JSON.stringify(lista));
+}
 
 export default router;
