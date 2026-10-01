@@ -3,10 +3,12 @@ import { crudRouter } from '../lib/crudRouter.js';
 import { requireProvisioned, requireTipo } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { getConfig, setConfig } from '../lib/config.js';
 
 import authRouter from './auth.js';
 import leadsRouter from './leads.js';
 import coopcloudRouter from './coopcloud.js';
+import landingAdminRouter from './landingAdmin.js'; // 28/09: Marketing → Landing (borrador/publicar/versiones)
 import archivosRouter from './archivos.js';
 import grillaRouter from './grilla.js';
 import guardiasRouter from './guardias.js';
@@ -257,5 +259,38 @@ router.use('/multivac', multivacRouter); // Botones compartidos del terminal (ol
 // cualquier aprovisionado. Lectura manager/gerencial (el Dashboard los usa);
 // la escritura la restringe el propio router a manager.
 router.use('/costos', requireTipo('manager', 'gerencial'), costosRouter);
+
+// Marketing → Landing (28/09): administración del contenido de la landing
+// pública (borrador en Configuracion + versiones publicadas en LandingVersion).
+// El lado PÚBLICO vive en routes/landing.js, montado sin login en app.js.
+router.use(landingAdminRouter);
+
+// Conector CRM Ganado → Organizaciones (28/09): cola «Pendientes de crear»
+// (la llena el POST /leads/:id/ganar cuando el lead trae Reconecta/+Agua).
+// GET: quien ve el módulo; PATCH (creada/descartada/pendiente): equipo interno.
+router.get('/organizaciones-pendientes', async (req, res, next) => {
+  try {
+    const raw = await getConfig('organizaciones_pendientes');
+    let lista = [];
+    if (raw) { try { const p = JSON.parse(raw); if (Array.isArray(p)) lista = p; } catch { lista = []; } }
+    res.json({ pendientes: lista.filter((e) => e.estado === 'pendiente'), total: lista.length });
+  } catch (e) { next(e); }
+});
+router.patch('/organizaciones-pendientes/:leadId', requireTipo('manager', 'gerencial', 'collaborator'), async (req, res, next) => {
+  try {
+    const estado = String(req.body?.estado || '').trim();
+    if (!['pendiente', 'creada', 'descartada'].includes(estado)) throw new ApiError(400, 'bad_request', 'Estado inválido');
+    const raw = await getConfig('organizaciones_pendientes');
+    let lista = [];
+    if (raw) { try { const p = JSON.parse(raw); if (Array.isArray(p)) lista = p; } catch { lista = []; } }
+    const entrada = lista.find((e) => e.leadId === Number(req.params.leadId));
+    if (!entrada) throw new ApiError(404, 'not_found', 'Ese pendiente no existe');
+    entrada.estado = estado;
+    entrada.resueltoPor = req.colaborador?.nombre || null;
+    entrada.resueltoEl = new Date().toISOString();
+    await setConfig('organizaciones_pendientes', JSON.stringify(lista));
+    res.json({ ok: true, pendientes: lista.filter((e) => e.estado === 'pendiente') });
+  } catch (e) { next(e); }
+});
 
 export default router;

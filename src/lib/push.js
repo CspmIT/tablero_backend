@@ -17,6 +17,11 @@ export const TIPOS_NOTIFICACION = [
   // manual se excluye a quien lo cargó). Arranca ACTIVADA (decisión Leonardo:
   // los tickets son el trabajo diario del equipo; quien no quiera, la apaga).
   { id: 'ticket_nuevo', label: 'Inbox: ticket nuevo', desc: 'Aviso cuando entra un ticket nuevo al Inbox (Mesa de ayuda o carga manual)', defecto: true },
+  // 28/09: la landing pública es boca de entrada de leads — aviso al caer una
+  // consulta en la bandeja «Consultas web» del CRM. Arranca ACTIVADA (decisión
+  // Leonardo: una cooperativa interesada con su configuración armada es de lo
+  // más caliente que puede entrar).
+  { id: 'consulta_web', label: 'CRM: consulta web', desc: 'Aviso cuando entra una consulta desde la landing de Cooptech (bandeja Consultas web del CRM)', defecto: true },
 ];
 
 const CLAVE_PREFS = 'notificaciones_prefs'; // { [colabId]: { tipo: bool } }

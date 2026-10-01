@@ -65,6 +65,65 @@ router.put('/marketing-carpetas', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ---------------------------------------------------------------------------
+// Documento del mes de Planificación (28/09, pedido de Leonardo: «las chicas
+// de Booster no se adaptaron del todo — que puedan subir la planificación
+// mensual como Word, sin procesar, para revisión/aprobación»). El archivo es
+// un Archivo común (ruta `plan/<YYYY-MM>/documento`); acá vive SOLO su estado
+// de revisión, como JSON en Configuracion (sin migración, patrón carpetas):
+//   { "<archivoId>": { estado: 'pendiente'|'aprobado'|'observado',
+//                      por, fecha, obs? } }
+// Lee todo el equipo; el estado lo cambia SOLO conducción (manager/gerencial).
+// OJO ORDEN DE RUTAS: literales ANTES de /:id (lección 05/08).
+// ---------------------------------------------------------------------------
+const CLAVE_PLAN_DOC = 'marketing_plan_doc_estados';
+const PLAN_DOC_ESTADOS = ['pendiente', 'aprobado', 'observado'];
+
+router.get('/plan-doc-estados', async (req, res, next) => {
+  try {
+    const raw = await getConfig(CLAVE_PLAN_DOC);
+    let estados = {};
+    if (raw) { try { const p = JSON.parse(raw); if (p && typeof p === 'object') estados = p; } catch { /* se regenera */ } }
+    res.json({ estados });
+  } catch (e) { next(e); }
+});
+
+router.put('/plan-doc-estados', async (req, res, next) => {
+  try {
+    if (!['manager', 'gerencial'].includes(req.colaborador?.tipo)) {
+      throw new ApiError(403, 'forbidden', 'Aprobar u observar el documento del mes es de conducción');
+    }
+    const archivoId = Number(req.body?.archivoId);
+    const estado = String(req.body?.estado || '').trim();
+    if (!archivoId || !PLAN_DOC_ESTADOS.includes(estado)) {
+      throw new ApiError(400, 'bad_request', `Se espera { archivoId, estado: ${PLAN_DOC_ESTADOS.join('|')}, obs? }`);
+    }
+    const raw = await getConfig(CLAVE_PLAN_DOC);
+    let estados = {};
+    if (raw) { try { const p = JSON.parse(raw); if (p && typeof p === 'object') estados = p; } catch { estados = {}; } }
+    if (estado === 'pendiente') {
+      delete estados[String(archivoId)]; // pendiente = sin registro (el default)
+    } else {
+      estados[String(archivoId)] = {
+        estado,
+        por: req.colaborador?.nombre || null,
+        fecha: new Date().toISOString(),
+        ...(estado === 'observado' && req.body?.obs ? { obs: String(req.body.obs).trim().slice(0, 500) } : {}),
+      };
+    }
+    // Higiene: si el mapa crece de más (archivos borrados hace tiempo), se
+    // recortan las entradas más viejas — el estado de un doc ya borrado no
+    // le sirve a nadie.
+    const entradas = Object.entries(estados);
+    if (entradas.length > 300) {
+      entradas.sort((a, b) => String(a[1]?.fecha || '').localeCompare(String(b[1]?.fecha || '')));
+      estados = Object.fromEntries(entradas.slice(entradas.length - 300));
+    }
+    await setConfig(CLAVE_PLAN_DOC, JSON.stringify(estados));
+    res.json({ estados });
+  } catch (e) { next(e); }
+});
+
 // Almacenamiento de archivos:
 // El binario lo sube y lo lee directamente el FRONTEND contra el gateway de
 // almacenamiento (storageov → MinIO). Acá sólo guardamos la REFERENCIA: el

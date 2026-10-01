@@ -882,3 +882,44 @@ model LabBorrado {
   @@index([estado])
   @@index([createdAt])
 }
+
+// Landing pública de Cooptech (28/09): versiones PUBLICADAS del contenido que
+// administra Marketing → Landing. El borrador vive como JSON en Configuracion
+// (clave landing_borrador, patrón simulador CoopCloud); acá queda cada
+// publicación CONGELADA — el GET público /api/landing sirve la última tal
+// cual (rápido y auditable) y «republicar la versión N» es rollback.
+// payload: { publicado, publicadoPor, portada, kpis, productos, clientes,
+//            sustentabilidad, archivos: [keys], fuente: <borrador usado> }
+model LandingVersion {
+  id           Int      @id @default(autoincrement())
+  numero       Int      @unique // correlativo visible (v1, v2, …)
+  payload      String   @db.LongText
+  publicadoPor String?  // nombre snapshot (auditoría legible)
+  notas        String?  // p.ej. «republicación de la v3»
+  createdAt    DateTime @default(now())
+}
+
+// Consultas que entran desde la landing pública (28/09): la web es boca de
+// entrada de leads. NO van directo al embudo (decisión Leonardo — «nada entra
+// solo», como todo lo de la landing): caen en la bandeja «Consultas web» del
+// CRM y «Convertir en lead» crea el lead precargado. `detalle` guarda el JSON
+// por producto (config del simulador CoopCloud, reconectadores, plantas).
+model LandingConsulta {
+  id           Int      @id @default(autoincrement())
+  producto     String   @db.VarChar(40) // coopcloud | reconecta | mas-agua | general | …
+  organizacion String
+  contacto     String?
+  email        String?
+  telefono     String?
+  localidad    String?
+  mensaje      String?  @db.Text
+  detalle      String?  @db.Text // JSON específico del producto
+  origenUrl    String?  @db.VarChar(300)
+  estado       String   @default("nueva") @db.VarChar(20) // nueva | convertida | descartada
+  leadId       Int?     // el lead creado al convertir (referencia informativa)
+  ip           String?  @db.VarChar(60)
+  createdAt    DateTime @default(now())
+
+  @@index([estado])
+  @@index([createdAt])
+}
