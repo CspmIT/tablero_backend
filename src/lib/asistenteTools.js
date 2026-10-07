@@ -328,6 +328,126 @@ const TOOLS = [
       };
     },
   },
+  // 07/10 (pedido de Sofía, gerencia de administración): el asistente no veía
+  // los módulos nuevos. Dos herramientas: tickets del Inbox y consultas web.
+  {
+    roles: ['manager', 'gerencial', 'collaborator'], // equipo interno (no externos)
+    def: {
+      name: 'tickets_inbox',
+      description: 'Tickets del Inbox (mesa de ayuda interna): totales por estado, origen, tipo y causa OV, más el detalle de los tickets de un período (id, fecha, título, estado, clasificación y resumen de la descripción). Sin fechas, trae los últimos 3 meses. Sirve para preguntas como "cuántos tickets abiertos hay", "qué tickets entraron esta semana" o "qué temas se repiten".',
+      input_schema: {
+        type: 'object',
+        properties: {
+          desde: { type: 'string', description: 'Fecha inicial YYYY-MM-DD (opcional)' },
+          hasta: { type: 'string', description: 'Fecha final YYYY-MM-DD (opcional)' },
+          estado: { type: 'string', enum: ['abierto', 'en_proceso', 'resuelto', 'cerrado'], description: 'Opcional: limitar a un estado' },
+          limite: { type: 'number', description: 'Máximo de tickets en el detalle (defecto 50, tope 150). Los totales son siempre del período completo.' },
+        },
+        additionalProperties: false,
+      },
+    },
+    run: async (input) => {
+      const hasta = input.hasta ? toDate(input.hasta) : new Date();
+      const desde = input.desde ? toDate(input.desde)
+        : new Date(hasta.getTime() - 92 * 24 * 3600 * 1000); // 3 meses por defecto
+      // Fecha "real" del ticket: ocurridoAt si está (reclamos cargados con retraso),
+      // si no la fecha de carga — mismo criterio que Métricas OV.
+      const where = {
+        OR: [
+          { ocurridoAt: { gte: desde, lte: hasta } },
+          { ocurridoAt: null, createdAt: { gte: desde, lte: hasta } },
+        ],
+      };
+      if (input.estado) where.estado = input.estado;
+      const tickets = await prisma.ticket.findMany({
+        where,
+        select: {
+          id: true, titulo: true, descripcion: true, estado: true, origen: true,
+          tipo: true, ovTipo: true, ovCausa: true, area: true, solicitante: true,
+          ocurridoAt: true, createdAt: true, resueltoAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      const cuenta = (campo) => {
+        const r = {};
+        for (const t of tickets) { const k = t[campo] || 'sin_clasificar'; r[k] = (r[k] || 0) + 1; }
+        return r;
+      };
+      const limite = Math.min(Math.max(Number(input.limite) || 50, 1), 150);
+      return {
+        periodo: { desde: desde.toISOString().slice(0, 10), hasta: hasta.toISOString().slice(0, 10) },
+        total: tickets.length,
+        porEstado: cuenta('estado'),
+        porOrigen: cuenta('origen'),
+        porTipoOV: cuenta('ovTipo'),
+        porCausaOV: cuenta('ovCausa'),
+        notaDetalle: tickets.length > limite ? `El detalle muestra los ${limite} más recientes de ${tickets.length}.` : undefined,
+        tickets: tickets.slice(0, limite).map(t => ({
+          id: t.id,
+          fecha: (t.ocurridoAt || t.createdAt).toISOString().slice(0, 10),
+          titulo: t.titulo,
+          descripcion: String(t.descripcion || '').slice(0, 160),
+          estado: t.estado, origen: t.origen, area: t.area,
+          tipoOV: t.ovTipo || null, causaOV: t.ovCausa || null,
+          solicitante: t.solicitante || null,
+          resuelto: t.resueltoAt ? t.resueltoAt.toISOString().slice(0, 10) : null,
+        })),
+      };
+    },
+  },
+  {
+    roles: ['manager', 'gerencial', 'collaborator'],
+    def: {
+      name: 'consultas_web',
+      description: 'Consultas comerciales entradas por la landing pública de Cooptech (bandeja "Consultas web" del CRM): totales por estado (nueva / convertida en lead / descartada) y por producto, más el detalle reciente. Sirve para preguntas como "cuántas consultas web entraron este mes" o "qué productos despiertan más consultas".',
+      input_schema: {
+        type: 'object',
+        properties: {
+          desde: { type: 'string', description: 'Fecha inicial YYYY-MM-DD (opcional)' },
+          hasta: { type: 'string', description: 'Fecha final YYYY-MM-DD (opcional)' },
+          estado: { type: 'string', enum: ['nueva', 'convertida', 'descartada'], description: 'Opcional: limitar a un estado' },
+        },
+        additionalProperties: false,
+      },
+    },
+    run: async (input) => {
+      const hasta = input.hasta ? toDate(input.hasta) : new Date();
+      const desde = input.desde ? toDate(input.desde)
+        : new Date(hasta.getTime() - 92 * 24 * 3600 * 1000);
+      const where = { createdAt: { gte: desde, lte: hasta } };
+      if (input.estado) where.estado = input.estado;
+      const consultas = await prisma.landingConsulta.findMany({
+        where,
+        select: {
+          id: true, producto: true, organizacion: true, localidad: true,
+          estado: true, leadId: true, createdAt: true, mensaje: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      const cuenta = (campo) => {
+        const r = {};
+        for (const c of consultas) { const k = c[campo] || '—'; r[k] = (r[k] || 0) + 1; }
+        return r;
+      };
+      return {
+        periodo: { desde: desde.toISOString().slice(0, 10), hasta: hasta.toISOString().slice(0, 10) },
+        total: consultas.length,
+        porEstado: cuenta('estado'),
+        porProducto: cuenta('producto'),
+        notaDetalle: consultas.length > 60 ? `El detalle muestra las 60 más recientes de ${consultas.length}.` : undefined,
+        consultas: consultas.slice(0, 60).map(c => ({
+          id: c.id,
+          fecha: c.createdAt.toISOString().slice(0, 10),
+          producto: c.producto,
+          organizacion: c.organizacion,
+          localidad: c.localidad || null,
+          estado: c.estado,
+          convertidaEnLead: c.leadId || null,
+          mensaje: c.mensaje ? String(c.mensaje).slice(0, 120) : null,
+        })),
+      };
+    },
+  },
 ];
 
 // --- Resumen de horas extra (compartido con la solapa Análisis) -------------
