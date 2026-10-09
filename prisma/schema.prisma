@@ -120,6 +120,9 @@ model Colaborador {
   // Avatar como data-URI (recorte cuadrado 128x128), igual que el standalone.
   foto         String?         @db.Text
   haceGuardia  Boolean         @default(false)
+  // Legajo en el sistema de RRHH (09/10): opcional — externos y otras áreas no
+  // lo necesitan. Lo usa el export de guardias al importador de RRHH (Mirko).
+  legajo       String?         @db.VarChar(20)
   fechaIngreso DateTime?       @db.Date
   fechaSalida  DateTime?       @db.Date
   // Cumpleaños (día/mes; el año no importa para el tablero).

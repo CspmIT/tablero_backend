@@ -126,7 +126,7 @@ router.use('/colaboradores', (req, res, next) => (
   orderBy: { nombre: 'asc' },
   include: { periodos: { orderBy: { desde: 'asc' } } },
   transformInput: colaboradorTransform,
-  allowed: ['identitySub','tokenApp','tipo','nombre','email','sector','funcionCosto','iniciales','foto','haceGuardia','fechaIngreso','fechaSalida','periodos','cumpleDia','cumpleMes','activo'],
+  allowed: ['identitySub','tokenApp','tipo','nombre','email','sector','funcionCosto','iniciales','foto','haceGuardia','legajo','fechaIngreso','fechaSalida','periodos','cumpleDia','cumpleMes','activo'],
 }));
 // Sub-recurso: períodos del colaborador
 router.get('/colaboradores/:id/periodos', async (req, res, next) => {
