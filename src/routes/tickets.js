@@ -13,6 +13,7 @@ import { ApiError } from '../middleware/errorHandler.js';
 import { borrarBinario } from '../lib/almacenamiento.js';
 import { estadoSync, guardarConfigSync, sincronizarMesaAyuda, avisarEstadoMesa } from '../lib/mesaAyudaSync.js';
 import { notificarSuscriptosA } from '../lib/push.js';
+import { esDeReconecta, avisarEstadoReconecta, avisarMensajeReconecta, avisarAdjuntosReconecta } from '../lib/reconectaTickets.js';
 
 const router = Router();
 router.use(requireTipo('manager', 'gerencial', 'collaborator'));
@@ -214,7 +215,13 @@ router.patch('/:id', async (req, res, next) => {
         comentario: `Estado actualizado desde el Tablero Cooptech por ${req.colaborador?.nombre || 'el equipo'}${data.estado === 'cerrado' ? ' (cierre interno del tablero — el solicitante conserva la reapertura)' : ''}`,
       });
     }
-    res.json(mesaAviso ? { ...actualizado, mesaAviso } : actualizado);
+    // Tickets de Reconecta (14/10): la cooperativa ve el estado tal cual (sin la
+    // traducción cerrado→resuelto de la Mesa). Mismo criterio best effort.
+    let reconectaAviso;
+    if (data.estado !== undefined && data.estado !== t.estado && esDeReconecta(t)) {
+      reconectaAviso = await avisarEstadoReconecta(t, data.estado);
+    }
+    res.json({ ...actualizado, ...(mesaAviso ? { mesaAviso } : {}), ...(reconectaAviso ? { reconectaAviso } : {}) });
   } catch (e) { next(e); }
 });
 
@@ -229,7 +236,33 @@ router.post('/:id/mensajes', async (req, res, next) => {
       data: { ticketId: t.id, autorId: req.colaborador.id, autor: req.colaborador.nombre || null, texto },
     });
     await prisma.ticket.update({ where: { id: t.id }, data: { updatedAt: new Date() } });
-    res.status(201).json(m);
+    // Ticket de Reconecta: la respuesta le llega a la cooperativa.
+    const reconectaAviso = esDeReconecta(t) ? await avisarMensajeReconecta(t, m) : undefined;
+    res.status(201).json(reconectaAviso ? { ...m, reconectaAviso } : m);
+  } catch (e) { next(e); }
+});
+
+// POST /tickets/:id/adjuntos { key, nombre, mime, tamano } — registra un adjunto
+// ya subido al storage (antes el frontend iba directo a /archivos). Pasa por acá
+// para que, si el ticket vino de Reconecta, la cooperativa también lo vea.
+router.post('/:id/adjuntos', async (req, res, next) => {
+  try {
+    const b = req.body || {};
+    if (!b.key) throw new ApiError(400, 'bad_request', 'Falta "key" (nombre del archivo en el almacenamiento)');
+    const t = await prisma.ticket.findUnique({ where: { id: Number(req.params.id) } });
+    if (!t) throw new ApiError(404, 'not_found', 'Ticket no encontrado');
+    const archivo = await prisma.archivo.create({
+      data: {
+        key: String(b.key),
+        nombre: b.nombre || String(b.key),
+        mime: b.mime || null,
+        tamano: b.tamano != null && b.tamano !== '' ? Number(b.tamano) : null,
+        contexto: 'ticket',
+        url: `ticket:${t.id}`,
+      },
+    });
+    const reconectaAviso = esDeReconecta(t) ? await avisarAdjuntosReconecta(t, [archivo]) : undefined;
+    res.status(201).json(reconectaAviso ? { ...archivo, reconectaAviso } : archivo);
   } catch (e) { next(e); }
 });
 

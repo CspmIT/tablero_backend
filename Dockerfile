@@ -14,6 +14,12 @@ ARG STORAGE_SECRET
 # API key del catálogo de firmwares para Reconecta (AutonomIA). Sin ella el
 # endpoint /api/catalogo/firmwares responde 503 y el resto sigue igual.
 ARG FIRMWARES_API_KEY
+# Tickets que abren las cooperativas en Reconecta (ver CONFIG_INTEGRACIONES.md §6).
+# RECONECTA_TICKETS_API_KEY: la que presenta Reconecta al crear tickets (sin ella
+# la entrada responde 503). RECONECTA_TICKETS_TOKEN: con la que el tablero le
+# avisa a Reconecta estado/respuestas (sin ella esos avisos no salen).
+ARG RECONECTA_TICKETS_API_KEY
+ARG RECONECTA_TICKETS_TOKEN
 
 # Variables que usa la app: Prisma lee DATABASE_URL; el auth valida el JWT con
 # AUTH_JWT_SECRET cuando AUTH_MODE=prod. AUTH_MODE y PORT son config (no secrets).
@@ -29,6 +35,11 @@ ENV STORAGE_ACCESS=$STORAGE_ACCESS
 ENV STORAGE_SECRET=$STORAGE_SECRET
 # Catálogo de firmwares para otras apps (ver src/routes/catalogoFirmwares.js).
 ENV FIRMWARES_API_KEY=$FIRMWARES_API_KEY
+# Tickets de Reconecta: la URL no es secreta, va fija (backend de Reconecta en
+# producción). Ver src/routes/integracionReconecta.js y src/lib/reconectaTickets.js.
+ENV RECONECTA_TICKETS_API_KEY=$RECONECTA_TICKETS_API_KEY
+ENV RECONECTA_TICKETS_URL=https://reconecta.cooptech.com.ar/api/tablero/tickets
+ENV RECONECTA_TICKETS_TOKEN=$RECONECTA_TICKETS_TOKEN
 
 COPY package*.json ./
 RUN npm install
