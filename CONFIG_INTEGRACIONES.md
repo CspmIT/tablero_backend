@@ -122,6 +122,30 @@ Sin login ni token (la consulta el navegador del visitante), montada antes de
 |---|---|---|
 | `LANDING_BASE_URL` | Host público del backend, para armar las URLs de los logos | No: solo si detrás del proxy salen con host interno |
 
+## 6. Tickets desde Reconecta (14/10/2026)
+
+Las cooperativas abren tickets de soporte en Reconecta y entran al Inbox
+(`origen = reconecta`, con el nombre de la cooperativa). Lo que el equipo hace
+acá (estado, respuestas, adjuntos) vuelve a Reconecta. Detalle completo del
+circuito en `back-reconecta/docs/TICKETS.md`.
+
+| Variable | Valor | Obligatoria |
+|---|---|---|
+| `RECONECTA_TICKETS_API_KEY` | La clave que presenta Reconecta al empujar tickets (`x-api-key` o `Bearer`). Varias separadas por coma para rotar | Sí, para recibir tickets |
+| `RECONECTA_TICKETS_TOKEN` | Bearer con el que el tablero le avisa a Reconecta. Es **el mismo valor** que la variable homónima de Reconecta | Sí, para que la coop vea las respuestas |
+| `RECONECTA_TICKETS_URL` | `https://reconecta.cooptech.com.ar/api/tablero/tickets` (fija en el `Dockerfile`) | Sí |
+
+- Del otro lado, en `back-reconecta` (V2 y V3): `TABLERO_TICKETS_TOKEN` = el
+  valor de `RECONECTA_TICKETS_API_KEY`, y `RECONECTA_TICKETS_TOKEN` igual al de acá.
+- Es una clave distinta de `FIRMWARES_API_KEY` a propósito: esa solo lee el
+  catálogo, esta escribe en el Inbox.
+- **Sin `RECONECTA_TICKETS_API_KEY`:** la entrada responde `503`. Reconecta guarda
+  los tickets y los reintenta cada 5 minutos, así que no se pierden.
+- **Sin `RECONECTA_TICKETS_TOKEN` o con Reconecta caído:** el cambio se guarda acá
+  y el Inbox avisa que no llegó a la cooperativa (no hay reintento automático).
+- En producción entran por el build (secrets en GitHub → `--build-arg` → `ENV`).
+- Requiere la migración `20261014100000_tickets_reconecta` (`npx prisma migrate deploy`).
+
 ## Reglas
 
 - Credenciales **solo** en variables de entorno del servidor o cargadas desde la

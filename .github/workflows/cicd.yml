@@ -51,5 +51,7 @@ jobs:
                      --build-arg STORAGE_ACCESS=${{ secrets.MINIO_ACCESS }} \
                      --build-arg STORAGE_SECRET=${{ secrets.MINIO_SECRET }} \
                      --build-arg FIRMWARES_API_KEY=${{ secrets.FIRMWARES_API_KEY }} \
+                     --build-arg RECONECTA_TICKETS_API_KEY=${{ secrets.RECONECTA_TICKETS_API_KEY }} \
+                     --build-arg RECONECTA_TICKETS_TOKEN=${{ secrets.RECONECTA_TICKETS_TOKEN }} \
                     -t ${{ secrets.DOCKER_USER_NAME }}/${REPO_NAME}:${{ needs.bump.outputs.new_tag }} .
                   docker push ${{ secrets.DOCKER_USER_NAME }}/${REPO_NAME}:${{ needs.bump.outputs.new_tag }}

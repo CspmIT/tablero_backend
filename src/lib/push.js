@@ -16,7 +16,10 @@ export const TIPOS_NOTIFICACION = [
   // por la sincronización con la Mesa de ayuda o por carga manual (en la carga
   // manual se excluye a quien lo cargó). Arranca ACTIVADA (decisión Leonardo:
   // los tickets son el trabajo diario del equipo; quien no quiera, la apaga).
-  { id: 'ticket_nuevo', label: 'Inbox: ticket nuevo', desc: 'Aviso cuando entra un ticket nuevo al Inbox (Mesa de ayuda o carga manual)', defecto: true },
+  { id: 'ticket_nuevo', label: 'Inbox: ticket nuevo', desc: 'Aviso cuando entra un ticket nuevo al Inbox (Mesa de ayuda, Reconecta o carga manual)', defecto: true },
+  // 14/10: tickets de Reconecta — la cooperativa respondió o reabrió. Va a quien
+  // tiene asignado el ticket; si no hay asignado, a todos los suscriptos.
+  { id: 'ticket_mensaje', label: 'Inbox: respuesta de una cooperativa', desc: 'Aviso cuando una cooperativa responde o reabre un ticket que abrió desde Reconecta', defecto: true },
   // 28/09: la landing pública es boca de entrada de leads — aviso al caer una
   // consulta en la bandeja «Consultas web» del CRM. Arranca ACTIVADA (decisión
   // Leonardo: una cooperativa interesada con su configuración armada es de lo
