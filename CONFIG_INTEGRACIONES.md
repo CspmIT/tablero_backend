@@ -122,29 +122,38 @@ Sin login ni token (la consulta el navegador del visitante), montada antes de
 |---|---|---|
 | `LANDING_BASE_URL` | Host público del backend, para armar las URLs de los logos | No: solo si detrás del proxy salen con host interno |
 
-## 6. Tickets desde Reconecta (14/10/2026)
+## 6. Tickets desde Reconecta y Más Agua (14/10 y 15/10/2026)
 
-Las cooperativas abren tickets de soporte en Reconecta y entran al Inbox
-(`origen = reconecta`, con el nombre de la cooperativa). Lo que el equipo hace
-acá (estado, respuestas, adjuntos) vuelve a Reconecta. Detalle completo del
-circuito en `back-reconecta/docs/TICKETS.md`.
+Las cooperativas abren tickets de soporte en Reconecta o en Más Agua y entran
+al Inbox (`origen = reconecta | masagua`, con el nombre de la cooperativa). Lo
+que el equipo hace acá (estado, respuestas, adjuntos) vuelve al sistema de
+origen. Un router por sistema (`src/routes/integracionTickets.js`) y un cliente
+de vuelta (`src/lib/ticketsExternos.js`); cada sistema tiene sus propias claves
+y solo alcanza sus tickets. Detalle del circuito en `back-reconecta/docs/TICKETS.md`.
 
-| Variable | Valor | Obligatoria |
+| Variable | Reconecta | Más Agua |
 |---|---|---|
-| `RECONECTA_TICKETS_API_KEY` | La clave que presenta Reconecta al empujar tickets (`x-api-key` o `Bearer`). Varias separadas por coma para rotar | Sí, para recibir tickets |
-| `RECONECTA_TICKETS_TOKEN` | Bearer con el que el tablero le avisa a Reconecta. Es **el mismo valor** que la variable homónima de Reconecta | Sí, para que la coop vea las respuestas |
-| `RECONECTA_TICKETS_URL` | `https://reconecta.cooptech.com.ar/api/tablero/tickets` (fija en el `Dockerfile`) | Sí |
+| Entrada (`/api/integraciones/<sistema>/tickets`) | `/reconecta/` | `/masagua/` |
+| API key que presenta el sistema (varias separadas por coma para rotar) | `RECONECTA_TICKETS_API_KEY` | `MASAGUA_TICKETS_API_KEY` |
+| Bearer con el que el tablero avisa al sistema (mismo valor en los dos lados) | `RECONECTA_TICKETS_TOKEN` | `MASAGUA_TICKETS_TOKEN` |
+| URL de vuelta (fija en el `Dockerfile`) | `https://reconecta.cooptech.com.ar/api/tablero/tickets` | `https://masagua.cooptech.com.ar/api/tablero/tickets` |
 
-- Del otro lado, en `back-reconecta` (V2 y V3): `TABLERO_TICKETS_TOKEN` = el
-  valor de `RECONECTA_TICKETS_API_KEY`, y `RECONECTA_TICKETS_TOKEN` igual al de acá.
-- Es una clave distinta de `FIRMWARES_API_KEY` a propósito: esa solo lee el
-  catálogo, esta escribe en el Inbox.
-- **Sin `RECONECTA_TICKETS_API_KEY`:** la entrada responde `503`. Reconecta guarda
+- Del lado de cada sistema: `TABLERO_TICKETS_TOKEN` = su `<P>_TICKETS_API_KEY`
+  de acá, y `<P>_TICKETS_TOKEN` con el mismo valor que acá (en Reconecta se llama
+  `RECONECTA_TICKETS_TOKEN`; en Más Agua, `MASAGUA_TICKETS_TOKEN`).
+- Son claves distintas de `FIRMWARES_API_KEY` a propósito: esa solo lee el
+  catálogo, estas escriben en el Inbox. Y distintas entre sistemas, para poder
+  revocar una sin cortar la otra.
+- **Sin la API key de un sistema:** su entrada responde `503`. El sistema guarda
   los tickets y los reintenta cada 5 minutos, así que no se pierden.
-- **Sin `RECONECTA_TICKETS_TOKEN` o con Reconecta caído:** el cambio se guarda acá
-  y el Inbox avisa que no llegó a la cooperativa (no hay reintento automático).
+- **Sin el token de vuelta o con el sistema caído:** el cambio se guarda acá y el
+  Inbox avisa que no llegó a la cooperativa (no hay reintento automático).
 - En producción entran por el build (secrets en GitHub → `--build-arg` → `ENV`).
-- Requiere la migración `20261014100000_tickets_reconecta` (`npx prisma migrate deploy`).
+- Migraciones: `20261014100000_tickets_reconecta` y `20261015100000_tickets_masagua`
+  (`npx prisma migrate deploy`).
+- Sumar otro sistema: entrada en `SISTEMAS` (`lib/ticketsExternos.js`), valor en
+  el enum `TicketOrigen` (migración), montaje en `app.js`, sus variables y su
+  etiqueta en `ORIGEN` del frontend (`TicketsInbox.jsx`).
 
 ## Reglas
 

@@ -13,7 +13,7 @@ import { ApiError } from '../middleware/errorHandler.js';
 import { borrarBinario } from '../lib/almacenamiento.js';
 import { estadoSync, guardarConfigSync, sincronizarMesaAyuda, avisarEstadoMesa } from '../lib/mesaAyudaSync.js';
 import { notificarSuscriptosA } from '../lib/push.js';
-import { esDeReconecta, avisarEstadoReconecta, avisarMensajeReconecta, avisarAdjuntosReconecta } from '../lib/reconectaTickets.js';
+import { esExterno, avisarEstado, avisarMensaje, avisarAdjuntos } from '../lib/ticketsExternos.js';
 
 const router = Router();
 router.use(requireTipo('manager', 'gerencial', 'collaborator'));
@@ -215,13 +215,13 @@ router.patch('/:id', async (req, res, next) => {
         comentario: `Estado actualizado desde el Tablero Cooptech por ${req.colaborador?.nombre || 'el equipo'}${data.estado === 'cerrado' ? ' (cierre interno del tablero — el solicitante conserva la reapertura)' : ''}`,
       });
     }
-    // Tickets de Reconecta (14/10): la cooperativa ve el estado tal cual (sin la
-    // traducción cerrado→resuelto de la Mesa). Mismo criterio best effort.
-    let reconectaAviso;
-    if (data.estado !== undefined && data.estado !== t.estado && esDeReconecta(t)) {
-      reconectaAviso = await avisarEstadoReconecta(t, data.estado);
+    // Tickets de Reconecta / Más Agua: la cooperativa ve el estado tal cual (sin
+    // la traducción cerrado→resuelto de la Mesa). Mismo criterio best effort.
+    let externoAviso;
+    if (data.estado !== undefined && data.estado !== t.estado && esExterno(t)) {
+      externoAviso = await avisarEstado(t, data.estado);
     }
-    res.json({ ...actualizado, ...(mesaAviso ? { mesaAviso } : {}), ...(reconectaAviso ? { reconectaAviso } : {}) });
+    res.json({ ...actualizado, ...(mesaAviso ? { mesaAviso } : {}), ...(externoAviso ? { externoAviso } : {}) });
   } catch (e) { next(e); }
 });
 
@@ -236,15 +236,15 @@ router.post('/:id/mensajes', async (req, res, next) => {
       data: { ticketId: t.id, autorId: req.colaborador.id, autor: req.colaborador.nombre || null, texto },
     });
     await prisma.ticket.update({ where: { id: t.id }, data: { updatedAt: new Date() } });
-    // Ticket de Reconecta: la respuesta le llega a la cooperativa.
-    const reconectaAviso = esDeReconecta(t) ? await avisarMensajeReconecta(t, m) : undefined;
-    res.status(201).json(reconectaAviso ? { ...m, reconectaAviso } : m);
+    // Ticket de Reconecta / Más Agua: la respuesta le llega a la cooperativa.
+    const externoAviso = esExterno(t) ? await avisarMensaje(t, m) : undefined;
+    res.status(201).json(externoAviso ? { ...m, externoAviso } : m);
   } catch (e) { next(e); }
 });
 
 // POST /tickets/:id/adjuntos { key, nombre, mime, tamano } — registra un adjunto
 // ya subido al storage (antes el frontend iba directo a /archivos). Pasa por acá
-// para que, si el ticket vino de Reconecta, la cooperativa también lo vea.
+// para que, si el ticket vino de Reconecta o Más Agua, la cooperativa también lo vea.
 router.post('/:id/adjuntos', async (req, res, next) => {
   try {
     const b = req.body || {};
@@ -261,8 +261,8 @@ router.post('/:id/adjuntos', async (req, res, next) => {
         url: `ticket:${t.id}`,
       },
     });
-    const reconectaAviso = esDeReconecta(t) ? await avisarAdjuntosReconecta(t, [archivo]) : undefined;
-    res.status(201).json(reconectaAviso ? { ...archivo, reconectaAviso } : archivo);
+    const externoAviso = esExterno(t) ? await avisarAdjuntos(t, [archivo]) : undefined;
+    res.status(201).json(externoAviso ? { ...archivo, externoAviso } : archivo);
   } catch (e) { next(e); }
 });
 

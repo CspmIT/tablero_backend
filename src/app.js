@@ -11,7 +11,7 @@ import { errorHandler, notFound } from './middleware/errorHandler.js';
 import apiRouter from './routes/index.js';
 import { publicAuthRouter } from './routes/auth.js';
 import { catalogoFirmwaresRouter } from './routes/catalogoFirmwares.js';
-import { integracionReconectaRouter } from './routes/integracionReconecta.js';
+import { integracionTicketsRouter } from './routes/integracionTickets.js';
 import landingRouter from './routes/landing.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -38,10 +38,11 @@ export function createApp() {
   // `authenticate` a propósito; ver routes/catalogoFirmwares.js.
   app.use('/api/catalogo', catalogoFirmwaresRouter);
 
-  // Tickets que abren las cooperativas en Reconecta (14/10): API key propia,
-  // ANTES de `authenticate`; solo alcanza tickets origen=reconecta. Ver
-  // routes/integracionReconecta.js.
-  app.use('/api/integraciones/reconecta/tickets', integracionReconectaRouter);
+  // Tickets que abren las cooperativas en Reconecta (14/10) y Más Agua (15/10):
+  // API key propia por sistema, ANTES de `authenticate`; cada una solo alcanza
+  // los tickets de su origen. Ver routes/integracionTickets.js.
+  app.use('/api/integraciones/reconecta/tickets', integracionTicketsRouter('reconecta'));
+  app.use('/api/integraciones/masagua/tickets', integracionTicketsRouter('masagua'));
 
   // API pública de la landing de Cooptech (25/09): los 6 monómicos PUBLICADOS
   // y los logos de «Logos Clientes». Sin token (la consulta el navegador del

@@ -743,7 +743,8 @@ enum TicketOrigen {
   manual
   whatsapp
   mesa_ayuda
-  reconecta // 14/10: lo abre una cooperativa desde Reconecta (routes/integracionReconecta.js)
+  reconecta // 14/10: lo abre una cooperativa desde Reconecta (routes/integracionTickets.js)
+  masagua   // 15/10: ídem desde Más Agua
 }
 
 model Ticket {
@@ -757,9 +758,9 @@ model Ticket {
   descripcion    String       @db.Text
   estado         TicketEstado @default(abierto)
   origen         TicketOrigen @default(manual)
-  externalId     String?      @unique // id en la Mesa de ayuda (sync idempotente); Reconecta: "reconecta:<schema>:<id>"
-  cooperativa    String?      // schema de Reconecta de la coop que lo abrió (solo origen=reconecta)
-  cooperativaNombre String?   // nombre del cliente (cooptech.clients vía client_products), lo manda Reconecta
+  externalId     String?      @unique // id en la Mesa de ayuda (sync idempotente); Reconecta: "<reconecta|masagua>:<schema>:<id>"
+  cooperativa    String?      // schema de la coop en Reconecta / Más Agua (solo esos orígenes)
+  cooperativaNombre String?   // nombre del cliente (cooptech.clients vía client_products), lo manda el sistema
   solicitante    String?      // cliente interno (puede no ser usuario nuestro)
   creadoPorId    Int?         // colaborador que lo digitalizó (null si vino por API)
   asignadoAId    Int?
