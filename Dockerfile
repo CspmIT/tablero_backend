@@ -20,6 +20,9 @@ ARG FIRMWARES_API_KEY
 # avisa a Reconecta estado/respuestas (sin ella esos avisos no salen).
 ARG RECONECTA_TICKETS_API_KEY
 ARG RECONECTA_TICKETS_TOKEN
+# Lo mismo para Más Agua (15/10), con claves propias.
+ARG MASAGUA_TICKETS_API_KEY
+ARG MASAGUA_TICKETS_TOKEN
 
 # Variables que usa la app: Prisma lee DATABASE_URL; el auth valida el JWT con
 # AUTH_JWT_SECRET cuando AUTH_MODE=prod. AUTH_MODE y PORT son config (no secrets).
@@ -36,10 +39,13 @@ ENV STORAGE_SECRET=$STORAGE_SECRET
 # Catálogo de firmwares para otras apps (ver src/routes/catalogoFirmwares.js).
 ENV FIRMWARES_API_KEY=$FIRMWARES_API_KEY
 # Tickets de Reconecta: la URL no es secreta, va fija (backend de Reconecta en
-# producción). Ver src/routes/integracionReconecta.js y src/lib/reconectaTickets.js.
+# producción). Ver src/routes/integracionTickets.js y src/lib/ticketsExternos.js.
 ENV RECONECTA_TICKETS_API_KEY=$RECONECTA_TICKETS_API_KEY
 ENV RECONECTA_TICKETS_URL=https://reconecta.cooptech.com.ar/api/tablero/tickets
 ENV RECONECTA_TICKETS_TOKEN=$RECONECTA_TICKETS_TOKEN
+ENV MASAGUA_TICKETS_API_KEY=$MASAGUA_TICKETS_API_KEY
+ENV MASAGUA_TICKETS_URL=https://masagua.cooptech.com.ar/api/tablero/tickets
+ENV MASAGUA_TICKETS_TOKEN=$MASAGUA_TICKETS_TOKEN
 
 COPY package*.json ./
 RUN npm install
