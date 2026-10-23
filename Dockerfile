@@ -1,4 +1,4 @@
-FROM node:20.15.0-alpine3.20
+FROM node:24.22.1-alpine3.24
 WORKDIR /usr/src/app
 
 # Build-args que pasa el workflow (cargá estos secrets en GitHub).
