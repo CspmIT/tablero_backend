@@ -47,6 +47,11 @@ ENV MASAGUA_TICKETS_API_KEY=$MASAGUA_TICKETS_API_KEY
 ENV MASAGUA_TICKETS_URL=https://masagua.cooptech.com.ar/api/tablero/tickets
 ENV MASAGUA_TICKETS_TOKEN=$MASAGUA_TICKETS_TOKEN
 
+# Prisma detecta la versión de OpenSSL para elegir su motor; las imágenes Alpine
+# nuevas no lo traen y sin esto cae en el de openssl-1.1 (libssl.so.1.1), que
+# ya no existe en Alpine.
+RUN apk add --no-cache openssl
+
 COPY package*.json ./
 RUN npm install
 
